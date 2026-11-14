@@ -22,14 +22,6 @@ export default function Home() {
 
   return (
     <main>
-      <nav className="topbar">
-        <a className="brand" href="#top" aria-label="PortfolioGuard AI home">
-          <span>PG</span>
-          <div>PortfolioGuard <b>AI</b></div>
-        </a>
-        <div className="top-status"><i /> AWS-backed evidence engine</div>
-        <a className="nav-link" href="#method">Methodology</a>
-      </nav>
 
       <section className="hero" id="top">
         <div className="hero-copy">
