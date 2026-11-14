@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+.next/
+out/
+
+# Data (see data/README.md)
+data/*.csv
+data/*.parquet
+
+# OS
+.DS_Store
