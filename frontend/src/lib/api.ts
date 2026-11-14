@@ -1,22 +1,59 @@
-import type { PersonaId } from "./personas";
+export type TraceStep = { agent: string; action: string };
 
-export type TraceStep = { step: string; [key: string]: unknown };
+export type Proposal = {
+  id: string;
+  type: "create_account";
+  account_type: string;
+  horizon: string;
+  horizon_label: string;
+  risk: string;
+  risk_label: string;
+  persona: string;
+  reason: string;
+};
 
 export type ChatResponse = {
   answer: string;
-  metrics: Record<string, unknown>;
   trace: TraceStep[];
+  metrics: Record<string, string>;
+  sources: string[];
   warnings: string[];
+  proposal: Proposal | null;
+  suggestions: string[];
+};
+
+export type Account = {
+  id: string;
+  name: string;
+  type: string;
+  horizon: string;
+  risk: string;
+  risk_label: string;
+  persona: string;
+  horizon_agent: string;
+  strategies: string[];
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const USER_ID = "demo";
 
-export async function sendChat(persona_id: PersonaId, message: string): Promise<ChatResponse> {
-  const res = await fetch(`${API_URL}/api/chat`, {
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ persona_id, message }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
+
+export const api = {
+  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message }),
+  approve: (id: string, risk: string) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk }),
+  reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
+  accounts: async (): Promise<Account[]> => {
+    const res = await fetch(`${API_URL}/api/accounts?user_id=${USER_ID}`);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.json();
+  },
+};
