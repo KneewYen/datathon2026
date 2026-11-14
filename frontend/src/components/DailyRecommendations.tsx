@@ -1,3 +1,5 @@
+"use client";
+import { useEffect, useState } from "react";
 import type { Account } from "@/lib/api";
 
 type Rec = { title: string; detail: string; ask: string; tag: string };
@@ -59,13 +61,17 @@ export function DailyRecommendations({
   accounts: Account[];
   onAsk: (q: string) => void;
 }) {
-  const today = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" });
+  // Format the date in the browser only, so server and client HTML match
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" }));
+  }, []);
   return (
     <div className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
       <div className="mb-4 flex items-baseline justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-sky-600">Daily recommendations</div>
-          <div className="text-sm text-slate-500">{today}</div>
+          <div className="h-5 text-sm text-slate-500">{today}</div>
         </div>
         <span className="text-xs text-slate-400">Educational</span>
       </div>
