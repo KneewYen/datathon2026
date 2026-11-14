@@ -17,7 +17,7 @@ export function ProposalCard({
 }) {
   const [risk, setRisk] = useState(proposal.risk);
   return (
-    <div className="mt-3 space-y-4 rounded-xl bg-brand-50/60 p-4 ring-1 ring-slate-200">
+    <div className="mt-3 space-y-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
       <div>
         <div className="text-xs font-medium uppercase tracking-wider text-brand-600">Proposed account</div>
         <div className="text-base font-semibold">

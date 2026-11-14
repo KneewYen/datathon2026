@@ -1,4 +1,5 @@
 import type { Account } from "@/lib/api";
+import { RiskMeter } from "./RiskMeter";
 import { RISK_LEVEL, RISK_PROFILES } from "@/lib/profiles";
 
 export function currentProfile(accounts: Account[]) {
@@ -10,42 +11,33 @@ export function currentProfile(accounts: Account[]) {
 export function RiskSummary({ accounts }: { accounts: Account[] }) {
   const profile = currentProfile(accounts);
   const level = profile?.level ?? 0;
-  const counts = RISK_PROFILES.map((p) => ({ ...p, n: accounts.filter((a) => a.risk === p.id).length }));
+  const rows = [
+    { k: "Accounts", v: accounts.length },
+    ...RISK_PROFILES.map((p) => ({ k: p.label, v: accounts.filter((a) => a.risk === p.id).length })),
+  ];
 
   return (
-    <div className="flex h-full flex-col gap-6 rounded-3xl bg-gradient-to-br from-navy to-slate-600 p-6 text-white shadow-xl shadow-navy/20">
-      <div>
-        <div className="text-xs uppercase tracking-wider text-white/70">Your current risk type</div>
-        <div className="mt-1 text-3xl font-semibold">{profile ? profile.label : "Not set yet"}</div>
-        <div className="text-sm text-white/70">
-          {profile ? `${profile.horizon} focus` : "Open an account to set your risk"}
-        </div>
+    <div className="flex-1 rounded-lg border border-slate-200 bg-white p-5">
+      <h2 className="text-sm font-semibold text-slate-500">My risk type</h2>
+      <div className="mt-1 text-2xl font-semibold text-navy">{profile ? profile.label : "Not set yet"}</div>
+      <div className="text-xs text-slate-500">
+        {profile ? `${profile.horizon} focus` : "Open an account to set your risk"}
       </div>
-
-      <div>
-        <div className="mb-1 flex justify-between text-xs text-white/70">
+      <div className="mt-4">
+        <div className="mb-1 flex justify-between text-[11px] text-slate-500">
           <span>Low</span>
           <span>High</span>
         </div>
-        <div className="flex gap-1">
-          {[1, 2, 3].map((i) => (
-            <span key={i} className={`h-2.5 flex-1 rounded-full ${i <= level ? "bg-white" : "bg-white/30"}`} />
-          ))}
-        </div>
+        <RiskMeter level={level} size="lg" />
       </div>
-
-      <div className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-xl bg-white/15 p-2">
-          <div className="text-xl font-semibold">{accounts.length}</div>
-          <div className="text-xs text-white/70">Accounts</div>
-        </div>
-        {counts.map((c) => (
-          <div key={c.id} className="rounded-xl bg-white/15 p-2">
-            <div className="text-xl font-semibold">{c.n}</div>
-            <div className="text-xs text-white/70">{c.label}</div>
+      <dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200 text-sm">
+        {rows.map((r) => (
+          <div key={r.k} className="flex justify-between py-2">
+            <dt className="text-slate-500">{r.k}</dt>
+            <dd className="font-semibold">{r.v}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     </div>
   );
 }

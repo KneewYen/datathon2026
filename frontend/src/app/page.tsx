@@ -4,6 +4,7 @@ import { AccountsPanel } from "@/components/AccountsPanel";
 import { Message, type ChatMessage } from "@/components/Message";
 import { RiskSummary } from "@/components/RiskSummary";
 import { Header } from "@/components/Header";
+import { PillButton } from "@/components/PillButton";
 import { DailyRecommendations } from "@/components/DailyRecommendations";
 import { api, type Account, type ChatResponse } from "@/lib/api";
 import { FAQ } from "@/lib/profiles";
@@ -76,17 +77,21 @@ export default function Home() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="mx-auto grid max-w-[1500px] gap-6 px-4 py-8 lg:grid-cols-[300px_1fr_320px]">
+      <main className="mx-auto grid max-w-[1760px] gap-6 px-4 py-8 lg:grid-cols-[230px_minmax(0,1fr)_250px]">
         {/* Left: current risk type, top to bottom */}
-        <aside className="lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
+          <div className="space-y-3">
+            <PillButton icon="+" onClick={() => send("I want to create a new account")}>Open an account</PillButton>
+            <PillButton icon="?" onClick={() => inputRef.current?.focus()}>Ask a question</PillButton>
+          </div>
           <RiskSummary accounts={accounts} />
         </aside>
 
         {/* Middle: chat + accounts */}
         <div className="min-w-0 space-y-6">
         {/* Chat */}
-        <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-300/40 ring-1 ring-slate-200">
-          <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-gradient-to-b from-brand-50/50 to-white p-5">
+        <section className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+          <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-white p-5">
             {messages.map((m, i) => (
               <Message
                 key={i}
@@ -118,7 +123,7 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask me anything…"
-              className="flex-1 rounded-full bg-brand-50/60 px-5 py-3 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-400"
+              className="flex-1 rounded-full bg-white px-5 py-3 outline-none ring-1 ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 focus:ring-navy"
             />
             <button
               disabled={busy || !input.trim()}

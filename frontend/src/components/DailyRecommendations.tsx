@@ -67,33 +67,21 @@ export function DailyRecommendations({
     setToday(new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" }));
   }, []);
   return (
-    <div className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200">
-      <div className="mb-4 flex items-baseline justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-brand-600">Daily recommendations</div>
-          <div className="h-5 text-sm text-slate-500">{today}</div>
-        </div>
-        <span className="text-xs text-slate-400">Educational</span>
-      </div>
-      <ul className="flex-1 space-y-2 overflow-y-auto">
+    <div className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-6">
+      <h2 className="text-xl font-semibold">Daily recommendations</h2>
+      <div className="h-5 text-xs text-slate-500">{today}</div>
+      <ul className="mt-4 flex-1 overflow-y-auto border-t border-slate-200">
         {recommendations(accounts).map((r) => (
-          <li key={r.title}>
-            <button
-              onClick={() => onAsk(r.ask)}
-              className="group flex w-full items-start gap-3 rounded-2xl p-3 text-left transition hover:bg-brand-50"
-            >
-              <span className="mt-0.5 shrink-0 rounded-md bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
-                {r.tag}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">{r.title}</span>
-                <span className="block text-xs text-slate-500">{r.detail}</span>
-              </span>
-              <span className="self-center text-brand-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600">→</span>
+          <li key={r.title} className="border-b border-slate-200">
+            <button onClick={() => onAsk(r.ask)} className="group w-full py-3 text-left">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{r.tag}</span>
+              <span className="block text-sm font-medium text-link group-hover:underline">{r.title}</span>
+              <span className="block text-xs text-slate-500">{r.detail}</span>
             </button>
           </li>
         ))}
       </ul>
+      <p className="pt-3 text-[11px] text-slate-400">Educational only. Not financial advice.</p>
     </div>
   );
 }

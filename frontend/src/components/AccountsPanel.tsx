@@ -4,6 +4,14 @@ import { RiskMeter } from "./RiskMeter";
 
 const HORIZON: Record<string, string> = { short: "3–5 yrs", mid: "8–12 yrs", long: "15+ yrs" };
 
+function Flag() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-brand-500" fill="currentColor" aria-hidden>
+      <path d="M2 1h1.5v14H2zM4 2h9l-2 3.2L13 8.5H4z" />
+    </svg>
+  );
+}
+
 export function AccountsPanel({
   accounts,
   selectedId,
@@ -16,68 +24,51 @@ export function AccountsPanel({
   onNew: () => void;
 }) {
   return (
-    <section className="space-y-5 rounded-3xl bg-white p-5 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200 sm:p-6">
-      <div className="flex items-center justify-between">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold">My accounts</h2>
+          <h2 className="text-2xl font-semibold">My accounts</h2>
           <p className="text-xs text-slate-500">Click an account to ask about it</p>
         </div>
         <button
           onClick={onNew}
           aria-label="Create account"
           title="Create account"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-2xl leading-none text-white shadow-md shadow-brand-200 transition hover:scale-105 hover:bg-brand-600"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-2xl leading-none text-white transition hover:bg-brand-600"
         >
           +
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-        {accounts.map((a) => {
-          const active = a.id === selectedId;
-          return (
+      <h3 className="mt-5 border-b border-slate-200 pb-2 text-sm font-semibold">My simulated accounts</h3>
+      {accounts.length === 0 && <p className="py-4 text-sm text-slate-500">No accounts yet. Use + to open one.</p>}
+      <ul>
+        {accounts.map((a) => (
+          <li key={a.id} className="border-b border-slate-200">
             <button
-              key={a.id}
               onClick={() => onSelect(a)}
-              className={`group rounded-2xl bg-brand-50/40 p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-300/40 ${
-                active ? "ring-2 ring-brand-500 shadow-lg shadow-slate-300/40" : "ring-slate-200"
+              className={`flex w-full items-center gap-3 px-2 py-4 text-left transition hover:bg-slate-50 ${
+                a.id === selectedId ? "bg-slate-50 shadow-[inset_3px_0_0_#e41c23]" : ""
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wider text-brand-600">{a.type}</div>
-                  <div className="mt-0.5 text-lg font-semibold">{a.name}</div>
-                </div>
-                <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-                  {a.risk_label}
+              <Flag />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{a.name}</span>
+                <span className="block truncate text-xs text-slate-500">
+                  {a.horizon_agent} · {HORIZON[a.horizon]} · {a.strategies.join(", ")}
                 </span>
-              </div>
-              <div className="mt-4">
+              </span>
+              <span className="w-28 shrink-0">
+                <span className="mb-1 block text-right text-sm font-semibold">{a.risk_label}</span>
                 <RiskMeter level={RISK_LEVEL[a.risk] ?? 0} />
-              </div>
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>{a.horizon_agent}</span>
-                <span>{HORIZON[a.horizon]}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {a.strategies.map((s) => (
-                  <span key={s} className="rounded-md bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
-                    {s}
-                  </span>
-                ))}
-              </div>
+              </span>
             </button>
-          );
-        })}
-
-        <button
-          onClick={onNew}
-          className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 text-brand-600 transition hover:border-brand-400 hover:bg-brand-50"
-        >
-          <span className="text-3xl leading-none">+</span>
-          <span className="text-sm font-medium">Open an account</span>
-        </button>
-      </div>
+          </li>
+        ))}
+      </ul>
+      <button onClick={onNew} className="mt-3 text-sm font-medium text-link hover:underline">
+        + Open an account
+      </button>
     </section>
   );
 }

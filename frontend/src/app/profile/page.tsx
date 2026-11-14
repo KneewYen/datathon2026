@@ -27,7 +27,7 @@ export default function ProfilePage() {
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
         <Link href="/" className="text-sm text-brand-600 hover:text-brand-700">← Back to dashboard</Link>
 
-        <section className="flex items-center gap-5 rounded-3xl bg-white p-6 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200">
+        <section className="flex items-center gap-5 rounded-lg bg-white p-6 ring-1 ring-slate-200">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-100 text-3xl font-semibold text-brand-700">D</div>
           <div>
             <div className="text-xs uppercase tracking-wider text-brand-600">Profile</div>
@@ -42,7 +42,7 @@ export default function ProfilePage() {
             { k: "Goal", v: info?.goal ?? "—" },
             { k: "Horizon", v: info?.horizon ?? "—" },
           ].map((x) => (
-            <div key={x.k} className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+            <div key={x.k} className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
               <div className="text-xs text-slate-500">{x.k}</div>
               <div className="font-semibold">{x.v}</div>
             </div>
@@ -50,7 +50,7 @@ export default function ProfilePage() {
         </section>
 
         {info && (
-          <section className="rounded-3xl bg-white p-6 ring-1 ring-slate-200">
+          <section className="rounded-lg bg-white p-6 ring-1 ring-slate-200">
             <h2 className="mb-3 font-semibold">Preferences</h2>
             <div className="flex flex-wrap gap-2">
               {info.prefs.map((p) => (
@@ -60,11 +60,11 @@ export default function ProfilePage() {
           </section>
         )}
 
-        <section className="rounded-3xl bg-white p-6 ring-1 ring-slate-200">
+        <section className="rounded-lg bg-white p-6 ring-1 ring-slate-200">
           <h2 className="mb-3 font-semibold">Risk types</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             {RISK_PROFILES.map((r) => (
-              <div key={r.id} className={`rounded-2xl p-4 ring-1 ${profile?.id === r.id ? "bg-brand-50 ring-2 ring-brand-500" : "ring-slate-200"}`}>
+              <div key={r.id} className={`rounded-lg p-4 ring-1 ${profile?.id === r.id ? "bg-brand-50 ring-2 ring-brand-500" : "ring-slate-200"}`}>
                 <div className="font-semibold">{r.label}</div>
                 <div className="mb-2 text-xs text-slate-500">Like {r.persona} · {r.horizon}</div>
                 <RiskMeter level={r.level} />
@@ -73,7 +73,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 ring-1 ring-slate-200">
+        <section className="rounded-lg bg-white p-6 ring-1 ring-slate-200">
           <h2 className="mb-3 font-semibold">Accounts ({accounts.length})</h2>
           {accounts.length === 0 ? (
             <p className="text-sm text-slate-500">No accounts yet.</p>
