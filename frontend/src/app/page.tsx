@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { Message, type ChatMessage } from "@/components/Message";
 import { RiskSummary } from "@/components/RiskSummary";
+import { Header } from "@/components/Header";
+import { DailyRecommendations } from "@/components/DailyRecommendations";
 import { api, type Account, type ChatResponse } from "@/lib/api";
 import { FAQ } from "@/lib/profiles";
 
@@ -72,20 +74,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-sky-100 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500 font-bold text-white">P</div>
-            <div>
-              <div className="font-semibold leading-tight">PortfolioGuard AI</div>
-              <div className="text-xs text-slate-500">Team 62 · Datathon 2026</div>
-            </div>
-          </div>
-          <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-100">
-            Simulation
-          </span>
-        </div>
-      </header>
+      <Header />
 
       <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
         {/* Chat */}
@@ -133,8 +122,17 @@ export default function Home() {
           </form>
         </section>
 
-        {/* Risk */}
-        <RiskSummary accounts={accounts} />
+        {/* Risk (left) + Daily recommendations (right) */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <RiskSummary accounts={accounts} />
+          <DailyRecommendations
+            accounts={accounts}
+            onAsk={(q) => {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              send(q);
+            }}
+          />
+        </div>
 
         {/* Accounts */}
         <AccountsPanel
