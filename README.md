@@ -1,4 +1,4 @@
-# Datathon 2026: A Multi-Agent Strategic Investor
+# PortfolioGuard AI: A Multi-Agent Strategic Investor
 
 **Team 62** · Nguyen Le · Vincent Deserres · Marc Fadous · Nic Zampieri
 
