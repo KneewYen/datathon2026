@@ -4,7 +4,6 @@
 
 📖 **Full docs live in the [Wiki](https://github.com/KneewYen/datathon2026/wiki/Documentation-for-Datathon-2026-:-A-multi-agent-strategic-investor).**
 
-- [Team](https://github.com/KneewYen/datathon2026/wiki/Team)
 - [Problem](https://github.com/KneewYen/datathon2026/wiki/Problem)
 - [Solution](https://github.com/KneewYen/datathon2026/wiki/Solution)
 - [Architecture](https://github.com/KneewYen/datathon2026/wiki/Architecture)
