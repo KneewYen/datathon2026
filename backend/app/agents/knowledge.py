@@ -1,4 +1,4 @@
-"""Knowledge Base Agent: matches the question to an FAQ entry."""
+"""Knowledge base tool: matches a question to an FAQ entry and the wiki agents that own it."""
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional

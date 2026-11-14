@@ -6,7 +6,7 @@ import { api, type Account, type ChatResponse } from "@/lib/api";
 import { FAQ } from "@/lib/profiles";
 
 const WELCOME: ChatResponse = {
-  answer: "Hi! Ask me a question or tell me what kind of account you'd like to open.",
+  answer: "Ask me anything.",
   trace: [],
   metrics: {},
   sources: [],
@@ -93,7 +93,7 @@ export default function Home() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question or open an account…"
+            placeholder="Ask me anything…"
             className="flex-1 rounded-lg border border-neutral-200 bg-transparent px-3 py-2 dark:border-neutral-800"
           />
           <button disabled={busy || !input.trim()} className="rounded-lg bg-neutral-900 px-4 py-2 text-white disabled:opacity-40 dark:bg-white dark:text-neutral-900">

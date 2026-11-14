@@ -3,7 +3,7 @@ import re
 from typing import Any, Dict, List
 
 from app import store
-from app.agents import account_advisor, account_creation, knowledge
+from app.agents import account_creation, knowledge, profile
 from app.agents.signals import macro
 from app.profiles import PROFILES
 
@@ -32,8 +32,8 @@ class GlobalOrchestrator:
         trace = [{"agent": "Global Orchestrator", "action": "detect intent"}]
 
         if is_create_intent(message):
-            trace.append({"agent": "Account Advisor Agent", "action": "recommend account type and risk"})
-            rec = account_advisor.recommend(message)
+            trace.append({"agent": "Investor Profile Agent", "action": "read horizon and risk, recommend account"})
+            rec = profile.recommend(message)
             if rec.get("needs") == "horizon":
                 return _reply(
                     "What's the time horizon for this account?",
@@ -44,6 +44,7 @@ class GlobalOrchestrator:
                         "Create a long-term account",
                     ],
                 )
+            trace.append({"agent": "Governance Agent", "action": "check fit with profile, require user approval"})
             action_id = store.new_id()
             store.PENDING[action_id] = {"user_id": user_id, "type": "create_account", "payload": rec}
             return _reply(
@@ -56,31 +57,36 @@ class GlobalOrchestrator:
 
         entry = knowledge.match(message)
         if entry:
-            trace.append({"agent": "Knowledge Base Agent", "action": f"matched FAQ: {entry['id']}"})
-            extra: Dict[str, Any] = {}
+            trace[0]["action"] = f"detect intent: question ({entry['id']}), route to {', '.join(entry['agents'])}"
+            extra: Dict[str, Any] = {"metrics": {}, "sources": [f"Knowledge base: {entry['id']}"], "warnings": []}
             answer = entry["answer"]
-            if entry["id"] in ("recession", "rates"):
-                trace.append({"agent": "Macro Signal Agent", "action": "read yield curve and unemployment"})
-                sig = macro.recession_signals()
-                extra = {k: sig.get(k, []) for k in ("metrics", "sources", "warnings")}
-                if sig.get("notes"):
-                    answer += "\n\n" + "\n".join(f"- {n}" for n in sig["notes"])
-            if entry["id"] in ("recession", "volatility", "diversification"):
-                accts = store.accounts(user_id)
-                if accts:
-                    trace.append({"agent": "Risk Agent", "action": "map exposure to your accounts"})
-                    lines = [
-                        f"- {a['name']} ({a['risk_label']}): handled by {a['horizon_agent']}"
-                        + (", shortest horizon, most exposed to a near-term downturn" if a["horizon"] == "short" else "")
-                        for a in accts
-                    ]
-                    answer += "\n\nYour accounts:\n" + "\n".join(lines)
+            for agent in entry["agents"]:
+                if agent == "Macro Signal Agent":
+                    trace.append({"agent": agent, "action": "read yield curve and unemployment (Market Data)"})
+                    sig = macro.recession_signals()
+                    extra["metrics"].update(sig.get("metrics", {}))
+                    extra["sources"] += sig.get("sources", [])
+                    extra["warnings"] += sig.get("warnings", [])
+                    if sig.get("notes"):
+                        answer += "\n\n" + "\n".join(f"- {n}" for n in sig["notes"])
+                elif agent == "Risk Agent":
+                    accts = store.accounts(user_id)
+                    trace.append({"agent": agent, "action": "map exposure to your accounts" if accts else "no accounts yet"})
+                    if accts:
+                        lines = [
+                            f"- {a['name']} ({a['risk_label']}): handled by {a['horizon_agent']}"
+                            + (", shortest horizon, most exposed to a near-term downturn" if a["horizon"] == "short" else "")
+                            for a in accts
+                        ]
+                        answer += "\n\nYour accounts:\n" + "\n".join(lines)
+                else:
+                    trace.append({"agent": agent, "action": "answer from knowledge base"})
             trace.append({"agent": "Explainability Agent", "action": "attach sources and limits"})
-            extra.setdefault("warnings", []).append(DISCLAIMER)
+            extra["warnings"].append(DISCLAIMER)
             return _reply(answer, trace, **extra)
 
         return _reply(
-            "I can answer common questions or help you open an account. Try one of these:",
+            "I don't have that in my knowledge base yet. Try one of these:",
             trace,
             suggestions=knowledge.suggestions() + ["Create a short-term account"],
         )
@@ -97,8 +103,9 @@ class GlobalOrchestrator:
             f"Created **{acct['name']}** ({acct['risk_label']}). It's managed by the {acct['horizon_agent']} "
             f"with {', '.join(acct['strategies'])} strategies.",
             [
-                {"agent": "Global Orchestrator", "action": "user approved"},
+                {"agent": "Governance Agent", "action": "user approved"},
                 {"agent": "Account Creation Agent", "action": f"created {acct['name']}"},
+                {"agent": acct["horizon_agent"], "action": f"assigned {', '.join(acct['strategies'])}"},
             ],
             warnings=[DISCLAIMER],
         )

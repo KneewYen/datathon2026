@@ -1,4 +1,4 @@
-"""Account Advisor Agent: recommends an account type and risk profile."""
+"""Investor Profile Agent: reads horizon, risk and goals; recommends account type and risk profile."""
 import re
 from typing import Any, Dict, Optional
 

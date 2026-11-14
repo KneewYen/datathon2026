@@ -24,7 +24,7 @@
     "id": "account_types",
     "keywords": ["tfsa", "rrsp", "fhsa", "non-registered", "account type", "which account"],
     "question": "What is the difference between TFSA, RRSP, FHSA and non-registered?",
-    "agents": ["Account Advisor Agent"],
+    "agents": ["Investor Profile Agent"],
     "answer": "TFSA: tax-free growth and withdrawals. RRSP: tax-deductible contributions, taxed on withdrawal, built for retirement. FHSA: for a first home purchase. Non-registered: no contribution limits and full flexibility, but gains are taxable."
   },
   {
