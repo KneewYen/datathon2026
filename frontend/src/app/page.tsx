@@ -85,8 +85,8 @@ export default function Home() {
         {/* Middle: chat + accounts */}
         <div className="min-w-0 space-y-6">
         {/* Chat */}
-        <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
-          <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-gradient-to-b from-sky-50/50 to-white p-5">
+        <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-brand-100/60 ring-1 ring-brand-100">
+          <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-gradient-to-b from-brand-50/50 to-white p-5">
             {messages.map((m, i) => (
               <Message
                 key={i}
@@ -98,10 +98,10 @@ export default function Home() {
               />
             ))}
             {busy && (
-              <div className="flex items-center gap-2 pl-11 text-sm text-sky-600">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-sky-400" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-sky-400 [animation-delay:120ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-sky-400 [animation-delay:240ms]" />
+              <div className="flex items-center gap-2 pl-11 text-sm text-brand-600">
+                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400 [animation-delay:120ms]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400 [animation-delay:240ms]" />
               </div>
             )}
             {error && <div className="pl-11 text-sm text-red-600">{error}</div>}
@@ -111,18 +111,18 @@ export default function Home() {
               e.preventDefault();
               send(input);
             }}
-            className="flex gap-2 border-t border-sky-100 p-3"
+            className="flex gap-2 border-t border-brand-100 p-3"
           >
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask me anything…"
-              className="flex-1 rounded-full bg-sky-50/60 px-5 py-3 outline-none ring-1 ring-sky-100 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-sky-400"
+              className="flex-1 rounded-full bg-brand-50/60 px-5 py-3 outline-none ring-1 ring-brand-100 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-400"
             />
             <button
               disabled={busy || !input.trim()}
-              className="rounded-full bg-sky-500 px-6 py-3 font-medium text-white shadow-sm shadow-sky-200 transition hover:bg-sky-600 disabled:opacity-40"
+              className="rounded-full bg-brand-500 px-6 py-3 font-medium text-white shadow-sm shadow-brand-200 transition hover:bg-brand-600 disabled:opacity-40"
             >
               Send
             </button>

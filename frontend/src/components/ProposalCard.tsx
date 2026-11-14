@@ -17,9 +17,9 @@ export function ProposalCard({
 }) {
   const [risk, setRisk] = useState(proposal.risk);
   return (
-    <div className="mt-3 space-y-4 rounded-xl bg-sky-50/60 p-4 ring-1 ring-sky-100">
+    <div className="mt-3 space-y-4 rounded-xl bg-brand-50/60 p-4 ring-1 ring-brand-100">
       <div>
-        <div className="text-xs font-medium uppercase tracking-wider text-sky-600">Proposed account</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-brand-600">Proposed account</div>
         <div className="text-base font-semibold">
           {proposal.account_type} <span className="font-normal text-slate-500">· {proposal.horizon_label}</span>
         </div>
@@ -32,8 +32,8 @@ export function ProposalCard({
             return (
               <label
                 key={r.id}
-                className={`cursor-pointer rounded-xl bg-white p-3 ring-1 transition hover:ring-sky-300 ${
-                  on ? "ring-2 ring-sky-500" : "ring-sky-100"
+                className={`cursor-pointer rounded-xl bg-white p-3 ring-1 transition hover:ring-brand-300 ${
+                  on ? "ring-2 ring-brand-500" : "ring-brand-100"
                 }`}
               >
                 <input
@@ -56,7 +56,7 @@ export function ProposalCard({
         <button
           disabled={disabled}
           onClick={() => onApprove(risk)}
-          className="rounded-full bg-sky-500 px-5 py-2 text-sm font-medium text-white shadow-sm shadow-sky-200 transition hover:bg-sky-600 disabled:opacity-40"
+          className="rounded-full bg-brand-500 px-5 py-2 text-sm font-medium text-white shadow-sm shadow-brand-200 transition hover:bg-brand-600 disabled:opacity-40"
         >
           Approve & create
         </button>

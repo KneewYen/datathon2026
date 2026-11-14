@@ -12,7 +12,7 @@ function Rich({ text }: { text: string }) {
         <p key={i}>
           {block.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
             part.startsWith("**") ? (
-              <b key={j} className="font-semibold text-sky-700">
+              <b key={j} className="font-semibold text-brand-700">
                 {part.slice(2, -2)}
               </b>
             ) : (
@@ -40,25 +40,25 @@ export function Message({
 }) {
   if (msg.role === "user") {
     return (
-      <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-sky-500 px-4 py-2 text-white">{msg.text}</div>
+      <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-brand-500 px-4 py-2 text-white">{msg.text}</div>
     );
   }
   const d = msg.data;
   const metrics = Object.entries(d.metrics ?? {});
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
         AI
       </div>
-      <div className="min-w-0 max-w-[90%] flex-1 rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-sky-100">
+      <div className="min-w-0 max-w-[90%] flex-1 rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-brand-100">
         <Rich text={d.answer} />
 
         {metrics.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {metrics.map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-sky-50 p-2">
+              <div key={k} className="rounded-lg bg-brand-50 p-2">
                 <div className="text-xs text-slate-500">{k}</div>
-                <div className="font-mono text-sm font-semibold text-sky-800">{v}</div>
+                <div className="font-mono text-sm font-semibold text-brand-800">{v}</div>
               </div>
             ))}
           </div>
@@ -80,7 +80,7 @@ export function Message({
                 key={s}
                 onClick={() => onSuggestion(s)}
                 disabled={busy}
-                className="rounded-full bg-sky-50 px-3 py-1 text-sm text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100 disabled:opacity-40"
+                className="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700 ring-1 ring-brand-100 transition hover:bg-brand-100 disabled:opacity-40"
               >
                 {s}
               </button>
@@ -90,7 +90,7 @@ export function Message({
 
         {d.trace?.length > 0 && (
           <details className="mt-3 text-xs text-slate-500">
-            <summary className="cursor-pointer text-sky-600 hover:text-sky-700">How I got this</summary>
+            <summary className="cursor-pointer text-brand-600 hover:text-brand-700">How I got this</summary>
             <ol className="mt-2 space-y-1">
               {d.trace.map((t, i) => (
                 <li key={i}>

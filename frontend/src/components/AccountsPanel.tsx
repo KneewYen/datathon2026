@@ -16,7 +16,7 @@ export function AccountsPanel({
   onNew: () => void;
 }) {
   return (
-    <section className="space-y-5 rounded-3xl bg-white p-5 shadow-xl shadow-sky-100/60 ring-1 ring-sky-100 sm:p-6">
+    <section className="space-y-5 rounded-3xl bg-white p-5 shadow-xl shadow-brand-100/60 ring-1 ring-brand-100 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">My accounts</h2>
@@ -26,7 +26,7 @@ export function AccountsPanel({
           onClick={onNew}
           aria-label="Create account"
           title="Create account"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-2xl leading-none text-white shadow-md shadow-sky-200 transition hover:scale-105 hover:bg-sky-600"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-2xl leading-none text-white shadow-md shadow-brand-200 transition hover:scale-105 hover:bg-brand-600"
         >
           +
         </button>
@@ -39,16 +39,16 @@ export function AccountsPanel({
             <button
               key={a.id}
               onClick={() => onSelect(a)}
-              className={`group rounded-2xl bg-sky-50/40 p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-100 ${
-                active ? "ring-2 ring-sky-500 shadow-lg shadow-sky-100" : "ring-sky-100"
+              className={`group rounded-2xl bg-brand-50/40 p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-100 ${
+                active ? "ring-2 ring-brand-500 shadow-lg shadow-brand-100" : "ring-brand-100"
               }`}
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs font-medium uppercase tracking-wider text-sky-600">{a.type}</div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-brand-600">{a.type}</div>
                   <div className="mt-0.5 text-lg font-semibold">{a.name}</div>
                 </div>
-                <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
+                <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
                   {a.risk_label}
                 </span>
               </div>
@@ -72,7 +72,7 @@ export function AccountsPanel({
 
         <button
           onClick={onNew}
-          className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-sky-200 text-sky-600 transition hover:border-sky-400 hover:bg-sky-50"
+          className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 text-brand-600 transition hover:border-brand-400 hover:bg-brand-50"
         >
           <span className="text-3xl leading-none">+</span>
           <span className="text-sm font-medium">Open an account</span>
