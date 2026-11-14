@@ -1,7 +1,10 @@
-# Datathon 2026
+# Datathon 2026: A Multi-Agent Strategic Investor
 
-📖 **Full docs live in the [Wiki](https://github.com/KneewYen/datathon2026/wiki).**
+**Team 62** · Nguyen Le · Vincent Deserres · Marc Fadous · Nic Zampieri
 
+📖 **Full docs live in the [Wiki](https://github.com/KneewYen/datathon2026/wiki/Documentation-for-Datathon-2026-:-A-multi-agent-strategic-investor).**
+
+- [Team](https://github.com/KneewYen/datathon2026/wiki/Team)
 - [Problem](https://github.com/KneewYen/datathon2026/wiki/Problem)
 - [Solution](https://github.com/KneewYen/datathon2026/wiki/Solution)
 - [Architecture](https://github.com/KneewYen/datathon2026/wiki/Architecture)
