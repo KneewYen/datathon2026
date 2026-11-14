@@ -49,7 +49,7 @@ function recommendations(accounts: Account[]): Rec[] {
       ask: "Why diversify?",
     });
   }
-  return recs.slice(0, 4);
+  return recs;
 }
 
 export function DailyRecommendations({
@@ -61,7 +61,7 @@ export function DailyRecommendations({
 }) {
   const today = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" });
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
+    <div className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
       <div className="mb-4 flex items-baseline justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-sky-600">Daily recommendations</div>
@@ -69,7 +69,7 @@ export function DailyRecommendations({
         </div>
         <span className="text-xs text-slate-400">Educational</span>
       </div>
-      <ul className="space-y-2">
+      <ul className="flex-1 space-y-2 overflow-y-auto">
         {recommendations(accounts).map((r) => (
           <li key={r.title}>
             <button

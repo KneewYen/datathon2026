@@ -76,7 +76,8 @@ export default function Home() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
+      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
+        <div className="min-w-0 space-y-6">
         {/* Chat */}
         <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
           <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-gradient-to-b from-sky-50/50 to-white p-5">
@@ -122,17 +123,8 @@ export default function Home() {
           </form>
         </section>
 
-        {/* Risk (left) + Daily recommendations (right) */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <RiskSummary accounts={accounts} />
-          <DailyRecommendations
-            accounts={accounts}
-            onAsk={(q) => {
-              window.scrollTo({ top: 0, behavior: "smooth" });
-              send(q);
-            }}
-          />
-        </div>
+        {/* Risk */}
+        <RiskSummary accounts={accounts} />
 
         {/* Accounts */}
         <AccountsPanel
@@ -142,7 +134,20 @@ export default function Home() {
           onNew={() => send("I want to create a new account")}
         />
 
-        <p className="pb-6 text-center text-xs text-slate-400">
+        </div>
+
+        {/* Daily recommendations: right column, top to bottom */}
+        <aside className="lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
+          <DailyRecommendations
+            accounts={accounts}
+            onAsk={(q) => {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              send(q);
+            }}
+          />
+        </aside>
+
+        <p className="pb-6 text-center text-xs text-slate-400 lg:col-span-2">
           Simulation only · Fictional accounts · Not financial advice · No real trades
         </p>
       </main>
