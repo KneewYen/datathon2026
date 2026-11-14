@@ -1,165 +1,162 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { AccountsPanel } from "@/components/AccountsPanel";
-import { Message, type ChatMessage } from "@/components/Message";
-import { RiskSummary } from "@/components/RiskSummary";
-import { Header } from "@/components/Header";
-import { PillButton } from "@/components/PillButton";
-import { DailyRecommendations } from "@/components/DailyRecommendations";
-import { api, type Account, type ChatResponse } from "@/lib/api";
-import { FAQ } from "@/lib/profiles";
 
-const WELCOME: ChatResponse = {
-  answer: "Ask me anything.",
-  trace: [],
-  metrics: {},
-  sources: [],
-  warnings: [],
-  proposal: null,
-  suggestions: FAQ,
-};
+import Link from "next/link";
+import { useState } from "react";
+import { AllocationComparison } from "@/components/AllocationComparison";
+import { MetricCards } from "@/components/MetricCards";
+import { PerformanceChart } from "@/components/PerformanceChart";
+import { TraceTimeline } from "@/components/TraceTimeline";
+import { DEMO_QUESTION, type AnalysisResponse } from "@/lib/api";
+import { PERSONAS, type PersonaId } from "@/lib/personas";
+
+
+const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
+const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
+
 
 export default function Home() {
-  const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", data: WELCOME }]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selected, setSelected] = useState<Account | null>(null);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [personaId, setPersonaId] = useState<PersonaId>("amira");
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    api.accounts().then(setAccounts).catch(() => {});
-  }, []);
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
-
-  async function run(fn: () => Promise<ChatResponse>, userText?: string, resolveId?: string) {
-    setBusy(true);
-    setError(null);
-    setMessages((m) => {
-      let next = m;
-      if (resolveId) {
-        next = next.map((x) =>
-          x.role === "assistant" && x.data.proposal?.id === resolveId ? { ...x, resolved: true } : x
-        );
-      }
-      return userText ? [...next, { role: "user", text: userText }] : next;
-    });
-    try {
-      const data = await fn();
-      setMessages((m) => [...m, { role: "assistant", data }]);
-      setAccounts(await api.accounts());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Request failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const send = (text: string) => {
-    const t = text.trim();
-    if (!t || busy) return;
-    setInput("");
-    run(() => api.chat(t), t);
-  };
-
-  const selectAccount = (a: Account) => {
-    setSelected(a);
-    setInput(`How risky is my ${a.name}?`);
-    inputRef.current?.focus();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const persona = PERSONAS.find((item) => item.id === personaId)!;
 
   return (
-    <div className="min-h-screen">
-      <Header />
+    <main>
 
-      <main className="mx-auto grid max-w-[1760px] gap-6 px-4 py-8 lg:grid-cols-[230px_minmax(0,1fr)_250px]">
-        {/* Left: current risk type, top to bottom */}
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
-          <div className="space-y-3">
-            <PillButton icon="+" onClick={() => send("I want to create a new account")}>Open an account</PillButton>
-            <PillButton icon="?" onClick={() => inputRef.current?.focus()}>Ask a question</PillButton>
-          </div>
-          <RiskSummary accounts={accounts} />
-        </aside>
-
-        {/* Middle: chat + accounts */}
-        <div className="min-w-0 space-y-6">
-        {/* Chat */}
-        <section className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
-          <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-white p-5">
-            {messages.map((m, i) => (
-              <Message
-                key={i}
-                msg={m}
-                busy={busy}
-                onSuggestion={send}
-                onApprove={(id, risk) => run(() => api.approve(id, risk), "Approve", id)}
-                onReject={(id) => run(() => api.reject(id), "Decline", id)}
-              />
-            ))}
-            {busy && (
-              <div className="flex items-center gap-2 pl-11 text-sm text-brand-600">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400 [animation-delay:120ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-brand-400 [animation-delay:240ms]" />
-              </div>
-            )}
-            {error && <div className="pl-11 text-sm text-red-600">{error}</div>}
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              send(input);
-            }}
-            className="flex gap-2 border-t border-slate-200 p-3"
-          >
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask me anything…"
-              className="flex-1 rounded-full bg-white px-5 py-3 outline-none ring-1 ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 focus:ring-navy"
-            />
-            <button
-              disabled={busy || !input.trim()}
-              className="rounded-full bg-brand-500 px-6 py-3 font-medium text-white shadow-sm shadow-brand-200 transition hover:bg-brand-600 disabled:opacity-40"
-            >
-              Send
-            </button>
-          </form>
-        </section>
-
-
-        {/* Accounts */}
-        <AccountsPanel
-          accounts={accounts}
-          selectedId={selected?.id ?? null}
-          onSelect={selectAccount}
-          onNew={() => send("I want to create a new account")}
-        />
-
+      <section className="hero" id="top">
+        <div className="hero-copy">
+          <span className="eyebrow">Fictional portfolio decision support</span>
+          <h1>See the trade-off<br />before the allocation changes.</h1>
+          <p>
+            PortfolioGuard coordinates account and strategy agents, calculates every metric
+            in AWS, and shows the evidence behind the answer.
+          </p>
         </div>
-
-        {/* Right: daily recommendations, top to bottom */}
-        <aside className="lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
-          <DailyRecommendations
-            accounts={accounts}
-            onAsk={(q) => {
-              window.scrollTo({ top: 0, behavior: "smooth" });
-              send(q);
-            }}
-          />
+        <aside className="persona-panel">
+          <span className="panel-label">Investor context</span>
+          <div className="persona-tabs" role="tablist" aria-label="Fictional investor persona">
+            {PERSONAS.map((item) => (
+              <button
+                key={item.id}
+                className={item.id === personaId ? "active" : ""}
+                onClick={() => { setPersonaId(item.id); setResult(null); setError(null); }}
+                role="tab"
+                aria-selected={item.id === personaId}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+          <div className="persona-summary">
+            <div><strong>{persona.age}</strong><span>age</span></div>
+            <div><strong>{persona.horizon}</strong><span>horizon</span></div>
+            <div><strong>{persona.risk}</strong><span>risk profile</span></div>
+          </div>
+          <p>{persona.goal}. The scenario remains fictional and does not use client data.</p>
         </aside>
+      </section>
 
-        <p className="pb-6 text-center text-xs text-slate-400 lg:col-span-3">
-          Simulation only · Fictional accounts · Not financial advice · No real trades
-        </p>
-      </main>
-    </div>
+      <section className="workspace">
+        <div className="workspace-kicker">
+          <span>01</span>
+          <p>Focused scenario</p>
+          <b>TFSA</b>
+        </div>
+        <div className="question-row">
+          <h2>“{DEMO_QUESTION}”</h2>
+          <Link className="analyze-button" href={`/dashboard?persona=${personaId}`}>
+            <span>Analyze with live AWS</span>
+            <b>↗</b>
+          </Link>
+        </div>
+        <AllocationComparison
+          current={result?.current_allocations ?? CURRENT}
+          proposed={result?.proposed_allocations ?? PROPOSED}
+        />
+        <div className="method-strip">
+          <span><b>S3</b> Versioned market data</span>
+          <span><b>λ</b> Deterministic calculations</span>
+          <span><b>BR</b> Grounded Bedrock explanation</span>
+          <span><b>✓</b> Governance checks</span>
+        </div>
+      </section>
+
+      {error && (
+        <section className="error-banner" role="alert">
+          <div><span>Connection required</span><strong>{error}</strong></div>
+          <p>No substitute result is shown. Configure the approved Lambda and Bedrock services, then retry.</p>
+        </section>
+      )}
+
+      {result ? (
+        <section className="results" aria-live="polite">
+          <div className={`conclusion ${result.conclusion}`}>
+            <span className="eyebrow">Evidence-backed answer</span>
+            <div>
+              <h2>{result.conclusion === "risk_reduced" ? "Measured risk decreased." : "The evidence is mixed."}</h2>
+              <p>{result.answer}</p>
+            </div>
+            <small>Bedrock model<br /><b>{result.model_id}</b></small>
+          </div>
+
+          <section className="result-section">
+            <header className="section-heading">
+              <div><span>02</span><h2>What changed</h2></div>
+              <p>Every value comes from the deterministic Lambda calculation.</p>
+            </header>
+            <MetricCards metrics={result.metrics} />
+            <PerformanceChart points={result.performance_series} />
+          </section>
+
+          <section className="result-section two-column" id="method">
+            <div>
+              <header className="section-heading compact">
+                <div><span>03</span><h2>Observable delegation</h2></div>
+              </header>
+              <TraceTimeline trace={result.trace} />
+            </div>
+            <div className="evidence-panel">
+              <header className="section-heading compact">
+                <div><span>04</span><h2>Controls and evidence</h2></div>
+              </header>
+              <div className="governance-list">
+                {result.governance.map((finding) => (
+                  <article key={finding.rule_id} className={finding.severity}>
+                    <span>{finding.rule_id.replaceAll("_", " ")}</span>
+                    <p>{finding.message}</p>
+                  </article>
+                ))}
+              </div>
+              <details open>
+                <summary>Calculation assumptions</summary>
+                <ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
+              </details>
+              <details>
+                <summary>Limitations</summary>
+                <ul>{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
+              </details>
+              <details>
+                <summary>Source objects</summary>
+                <ul className="source-list">{result.data_sources.map((item) => <li key={item}>{item}</li>)}</ul>
+              </details>
+            </div>
+          </section>
+        </section>
+      ) : (
+        <section className="preflight">
+          <div><span>02</span><h2>Ready for a real AWS run</h2></div>
+          <p>
+            The dashboard will populate only after the approved S3 dataset, financial Lambda,
+            and Bedrock model respond. Local placeholder metrics are intentionally disabled.
+          </p>
+        </section>
+      )}
+
+      <footer>
+        <div className="brand"><span>PG</span><div>PortfolioGuard <b>AI</b></div></div>
+        <p>Simulation only · Fictional portfolios · Not financial advice · No real trades</p>
+        <small>AlphaForge AI Datathon 2026 · Team 62</small>
+      </footer>
+    </main>
   );
 }

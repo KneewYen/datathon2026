@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Montserrat, Geist_Mono } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
 
 const brandFont = Montserrat({
@@ -7,14 +7,9 @@ const brandFont = Montserrat({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: "PortfolioGuard AI",
-  description: "Multi-agent strategic investor · Team 62",
+  description: "Evidence-backed fictional portfolio comparison for AlphaForge AI",
 };
 
 export default function RootLayout({
@@ -24,13 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* Extensions (e.g. Grammarly) inject attributes into <body> before React loads */}
-      <body
-        className={`${brandFont.variable} ${geistMono.variable} antialiased`}
-        suppressHydrationWarning
-      >
-        {children}
-      </body>
+      <body className={brandFont.variable}>{children}</body>
     </html>
   );
 }

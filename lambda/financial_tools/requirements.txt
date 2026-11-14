@@ -1,3 +1,1 @@
-pandas==2.2.3
-numpy==2.0.2
-boto3==1.35.36
+# No third-party runtime dependencies. The AWS Lambda Python runtime provides boto3.

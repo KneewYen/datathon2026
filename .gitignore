@@ -14,5 +14,10 @@ out/
 data/*.csv
 data/*.parquet
 
+# AWS local state and credentials
+.aws/
+.aws-sam/
+infra/samconfig.toml
+
 # OS
 .DS_Store

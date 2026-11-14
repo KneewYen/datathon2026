@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Account } from "@/lib/api";
 
 type Rec = { title: string; detail: string; ask: string; tag: string };
@@ -62,10 +62,7 @@ export function DailyRecommendations({
   onAsk: (q: string) => void;
 }) {
   // Format the date in the browser only, so server and client HTML match
-  const [today, setToday] = useState("");
-  useEffect(() => {
-    setToday(new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" }));
-  }, []);
+  const [today] = useState(() => new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" }));
   return (
     <div className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-6">
       <h2 className="text-xl font-semibold">Daily recommendations</h2>

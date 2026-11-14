@@ -1,7 +1,8 @@
-"""Investor Profile Agent: reads horizon, risk and goals; recommends account type and risk profile."""
+"""Investor profile lookup and account recommendation helpers."""
+
 import re
 from typing import Any, Dict, Optional
-
+from app.domain.presets import PERSONAS
 from app.profiles import HORIZONS, PROFILES
 
 ACCOUNT_BY_HORIZON = {
@@ -11,51 +12,57 @@ ACCOUNT_BY_HORIZON = {
 }
 
 
+def get_persona(persona_id: str) -> dict:
+    try:
+        return PERSONAS[persona_id]
+    except KeyError as exc:
+        raise ValueError(f"unknown persona: {persona_id}") from exc
+
+
 def parse_horizon(text: str) -> Optional[str]:
-    t = text.lower()
-    if re.search(r"short|soon|near", t):
+    lowered = text.lower()
+    if re.search(r"short|soon|near", lowered):
         return "short"
-    if re.search(r"\bmid|medium", t):
+    if re.search(r"\bmid|medium", lowered):
         return "mid"
-    if re.search(r"long|retire", t):
+    if re.search(r"long|retire", lowered):
         return "long"
-    m = re.search(r"(\d+)\s*(?:years|yrs|year)", t)
-    if m:
-        y = int(m.group(1))
-        return "short" if y <= 5 else "mid" if y <= 12 else "long"
+    match = re.search(r"(\d+)\s*(?:years|yrs|year)", lowered)
+    if match:
+        years = int(match.group(1))
+        return "short" if years <= 5 else "mid" if years <= 12 else "long"
     return None
 
 
 def parse_risk(text: str) -> Optional[str]:
-    t = text.lower()
-    if re.search(r"low|conservative|safe|cautious", t):
+    lowered = text.lower()
+    if re.search(r"low|conservative|safe|cautious", lowered):
         return "conservative"
-    if re.search(r"moderate|balanced|medium risk", t):
+    if re.search(r"moderate|balanced|medium risk", lowered):
         return "balanced"
-    if re.search(r"high|aggressive|growth", t):
+    if re.search(r"high|aggressive|growth", lowered):
         return "growth"
     return None
 
 
 def recommend(text: str) -> Dict[str, Any]:
-    t = text.lower()
-    horizon = parse_horizon(t)
-    if "home" in t or "house" in t or "fhsa" in t:
-        account_type, why = "FHSA", "Built for a first home purchase: deductible contributions and tax-free withdrawals for the home."
+    lowered = text.lower()
+    horizon = parse_horizon(lowered)
+    if "home" in lowered or "house" in lowered or "fhsa" in lowered:
+        account_type, reason = "FHSA", "Built for a first home purchase: deductible contributions and tax-free withdrawals for the home."
         horizon = horizon or "short"
     elif horizon:
-        account_type, why = ACCOUNT_BY_HORIZON[horizon]
+        account_type, reason = ACCOUNT_BY_HORIZON[horizon]
     else:
         return {"needs": "horizon"}
-
-    risk = parse_risk(t) or HORIZONS[horizon]["default_risk"]
-    p = PROFILES[risk]
+    risk = parse_risk(lowered) or HORIZONS[horizon]["default_risk"]
+    profile = PROFILES[risk]
     return {
         "account_type": account_type,
         "horizon": horizon,
         "horizon_label": HORIZONS[horizon]["label"],
         "risk": risk,
-        "risk_label": p["label"],
-        "persona": p["persona"],
-        "reason": why,
+        "risk_label": profile["label"],
+        "persona": profile["persona"],
+        "reason": reason,
     }
