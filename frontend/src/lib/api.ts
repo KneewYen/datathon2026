@@ -1,5 +1,46 @@
 import type { PersonaId } from "./personas";
 
+export type Proposal = {
+  id: string;
+  type: "create_account";
+  account_type: string;
+  horizon: string;
+  horizon_label: string;
+  risk: string;
+  risk_label: string;
+  persona: string;
+  reason: string;
+};
+
+export type ChatMessage = {
+  role: "user" | "assistant";
+  text?: string;
+  data?: ChatResponse;
+  resolved?: boolean;
+};
+
+export type ChatResponse = {
+  answer: string;
+  trace: Array<{ agent: string; action: string }>;
+  metrics: Record<string, string>;
+  sources: string[];
+  warnings: string[];
+  proposal: Proposal | null;
+  suggestions: string[];
+};
+
+export type Account = {
+  id: string;
+  name: string;
+  type: string;
+  horizon: string;
+  risk: string;
+  risk_label: string;
+  persona: string;
+  horizon_agent: string;
+  strategies: string[];
+};
+
 export type MetricEvidence = {
   evidence_id: string;
   label: string;
@@ -86,3 +127,24 @@ export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisRespon
   }
   return response.json();
 }
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`API error ${response.status}`);
+  return response.json();
+}
+
+export const api = {
+  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: "demo", message }),
+  approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk }),
+  reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
+  accounts: async (): Promise<Account[]> => {
+    const response = await fetch(`${API_URL}/api/accounts?user_id=demo`);
+    if (!response.ok) throw new Error(`API error ${response.status}`);
+    return response.json();
+  },
+};

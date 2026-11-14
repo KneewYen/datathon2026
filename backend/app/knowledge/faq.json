@@ -1,0 +1,58 @@
+[
+  {
+    "id": "recession",
+    "keywords": ["recession", "downturn", "crash", "bear market", "economy"],
+    "question": "I'm worried about a recession",
+    "agents": ["Macro Signal Agent", "Risk Agent"],
+    "answer": "Recessions are hard to time. A common warning sign is an inverted yield curve (2-year yield above 10-year), along with rising unemployment. Shorter horizons are more exposed to a downturn because there is less time to recover."
+  },
+  {
+    "id": "inflation",
+    "keywords": ["inflation", "cpi", "prices rising", "cost of living"],
+    "question": "How does inflation affect my investments?",
+    "agents": ["Macro Signal Agent"],
+    "answer": "Inflation reduces the real value of cash and fixed-rate bonds. Equities and real assets have historically kept pace better over long periods, but not in every year."
+  },
+  {
+    "id": "rates",
+    "keywords": ["interest rate", "rates", "fed", "bank of canada", "rate cut", "rate hike"],
+    "question": "What do interest rates mean for me?",
+    "agents": ["Macro Signal Agent", "Bond Agent"],
+    "answer": "When rates rise, existing bond prices fall, and longer-duration bonds fall more. Higher rates also make borrowing costlier for companies, which can weigh on growth stocks."
+  },
+  {
+    "id": "account_types",
+    "keywords": ["tfsa", "rrsp", "fhsa", "non-registered", "account type", "which account"],
+    "question": "What is the difference between TFSA, RRSP, FHSA and non-registered?",
+    "agents": ["Investor Profile Agent"],
+    "answer": "TFSA: tax-free growth and withdrawals. RRSP: tax-deductible contributions, taxed on withdrawal, built for retirement. FHSA: for a first home purchase. Non-registered: no contribution limits and full flexibility, but gains are taxable."
+  },
+  {
+    "id": "diversification",
+    "keywords": ["diversif", "concentrat", "too much tech", "spread"],
+    "question": "Why diversify?",
+    "agents": ["Risk Agent"],
+    "answer": "Holding different asset classes, sectors and regions reduces the impact of any single loss. It lowers risk without necessarily lowering long-term return."
+  },
+  {
+    "id": "crypto",
+    "keywords": ["crypto", "bitcoin", "btc", "ethereum", "eth"],
+    "question": "Should I hold crypto?",
+    "agents": ["Crypto Agent", "Risk Agent"],
+    "answer": "Bitcoin and Ether have been far more volatile than stocks, with drawdowns above 70%. Only growth profiles with long horizons usually consider a small, capped position."
+  },
+  {
+    "id": "esg",
+    "keywords": ["esg", "sustainab", "ethical", "green"],
+    "question": "What is ESG investing?",
+    "agents": ["ESG Agent"],
+    "answer": "ESG screens consider environmental, social and governance factors. ESG funds like ESGV exclude some sectors, which can change returns and risk versus a broad index like SPY."
+  },
+  {
+    "id": "volatility",
+    "keywords": ["volatil", "risk", "drawdown", "lose money"],
+    "question": "What is volatility?",
+    "agents": ["Risk Agent"],
+    "answer": "Volatility measures how much prices move around. Drawdown is the largest drop from a peak. Both describe the past and do not predict the future."
+  }
+]
