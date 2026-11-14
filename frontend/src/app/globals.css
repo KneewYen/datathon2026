@@ -2,14 +2,14 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #1f2328;
+  --foreground: #00314d;
   color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-brand);
   --font-mono: var(--font-geist-mono);
 
   /* Brand palette: red + white, inspired by Canadian bank branding (approximate values) */
@@ -18,16 +18,27 @@
   --color-brand-200: #fbcacc;
   --color-brand-300: #f6a1a5;
   --color-brand-400: #ee6a71;
-  --color-brand-500: #e4202b;
-  --color-brand-600: #c61a24;
-  --color-brand-700: #a3151d;
-  --color-brand-800: #82131a;
-  --color-brand-900: #6a1218;
+  --color-brand-500: #e41c23;
+  --color-brand-600: #c4151c;
+  --color-brand-700: #a01218;
+  --color-brand-800: #7d0f14;
+  --color-brand-900: #5f0c10;
+
+  /* Neutrals and navy, taken from the National Bank site palette */
+  --color-navy: #00314d;
+  --color-slate-50: #f1f1f1;
+  --color-slate-100: #eef6fb;
+  --color-slate-200: #e1e1e1;
+  --color-slate-300: #d2d2d2;
+  --color-slate-400: #7993a2;
+  --color-slate-500: #565656;
+  --color-slate-600: #425865;
+  --color-slate-700: #303030;
 }
 
 body {
-  background: linear-gradient(180deg, #fff4f4 0%, #ffffff 320px);
+  background: linear-gradient(180deg, #f1f1f1 0%, #ffffff 320px);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-brand), Arial, sans-serif;
   min-height: 100vh;
 }

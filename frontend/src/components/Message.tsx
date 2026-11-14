@@ -50,7 +50,7 @@ export function Message({
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
         AI
       </div>
-      <div className="min-w-0 max-w-[90%] flex-1 rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-brand-100">
+      <div className="min-w-0 max-w-[90%] flex-1 rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-slate-200">
         <Rich text={d.answer} />
 
         {metrics.length > 0 && (
@@ -80,7 +80,7 @@ export function Message({
                 key={s}
                 onClick={() => onSuggestion(s)}
                 disabled={busy}
-                className="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700 ring-1 ring-brand-100 transition hover:bg-brand-100 disabled:opacity-40"
+                className="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700 ring-1 ring-slate-200 transition hover:bg-brand-100 disabled:opacity-40"
               >
                 {s}
               </button>

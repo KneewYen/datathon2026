@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Montserrat, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const brandFont = Montserrat({
+  variable: "--font-brand",
   subsets: ["latin"],
 });
 
@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en">
       {/* Extensions (e.g. Grammarly) inject attributes into <body> before React loads */}
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${brandFont.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}

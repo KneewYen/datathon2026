@@ -67,7 +67,7 @@ export function DailyRecommendations({
     setToday(new Date().toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" }));
   }, []);
   return (
-    <div className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-xl shadow-brand-100/60 ring-1 ring-brand-100">
+    <div className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200">
       <div className="mb-4 flex items-baseline justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-brand-600">Daily recommendations</div>

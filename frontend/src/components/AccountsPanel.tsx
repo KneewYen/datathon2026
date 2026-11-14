@@ -16,7 +16,7 @@ export function AccountsPanel({
   onNew: () => void;
 }) {
   return (
-    <section className="space-y-5 rounded-3xl bg-white p-5 shadow-xl shadow-brand-100/60 ring-1 ring-brand-100 sm:p-6">
+    <section className="space-y-5 rounded-3xl bg-white p-5 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">My accounts</h2>
@@ -39,8 +39,8 @@ export function AccountsPanel({
             <button
               key={a.id}
               onClick={() => onSelect(a)}
-              className={`group rounded-2xl bg-brand-50/40 p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-100 ${
-                active ? "ring-2 ring-brand-500 shadow-lg shadow-brand-100" : "ring-brand-100"
+              className={`group rounded-2xl bg-brand-50/40 p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-300/40 ${
+                active ? "ring-2 ring-brand-500 shadow-lg shadow-slate-300/40" : "ring-slate-200"
               }`}
             >
               <div className="flex items-start justify-between">
