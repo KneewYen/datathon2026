@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { Proposal } from "@/lib/chatApi";
+import type { Proposal } from "@/lib/api";
 import { RISK_PROFILES } from "@/lib/profiles";
 import { RiskMeter } from "./RiskMeter";
 

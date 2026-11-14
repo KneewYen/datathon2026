@@ -41,6 +41,23 @@ export type Account = {
   strategies: string[];
 };
 
+export type IntegrationStatus = {
+  configured: boolean;
+  label: string;
+  detail: string;
+};
+
+export type ApiMeta = {
+  profiles: Record<string, unknown>;
+  faq: string[];
+  integrations: {
+    region: string | null;
+    lambda: IntegrationStatus;
+    bedrock: IntegrationStatus;
+    dataset: IntegrationStatus;
+  };
+};
+
 export type MetricEvidence = {
   evidence_id: string;
   label: string;
@@ -106,6 +123,7 @@ export type AnalysisResponse = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const USER_ID = "demo";
 
 export const DEMO_QUESTION =
   "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
@@ -134,17 +152,28 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API error ${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail ? `: ${payload.detail}` : "";
+    throw new Error(`API request failed (${response.status})${detail}`);
+  }
+  return response.json();
+}
+
+async function get<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail ? `: ${payload.detail}` : "";
+    throw new Error(`API request failed (${response.status})${detail}`);
+  }
   return response.json();
 }
 
 export const api = {
-  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: "demo", message }),
+  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message }),
   approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk }),
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
-  accounts: async (): Promise<Account[]> => {
-    const response = await fetch(`${API_URL}/api/accounts?user_id=demo`);
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    return response.json();
-  },
+  accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
+  meta: () => get<ApiMeta>("/api/meta"),
 };

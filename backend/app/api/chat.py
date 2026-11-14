@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -70,4 +71,35 @@ def meta() -> Dict[str, Any]:
     from app.agents import knowledge
     from app.profiles import PROFILES
 
-    return {"profiles": PROFILES, "faq": knowledge.suggestions()}
+    region = os.getenv("AWS_REGION")
+    function_name = os.getenv("LAMBDA_FUNCTION_NAME")
+    model_id = os.getenv("BEDROCK_MODEL_ID")
+    data_bucket = os.getenv("S3_BUCKET")
+    data_prefix = os.getenv("DATA_PREFIX", "starter/v1")
+
+    return {
+        "profiles": PROFILES,
+        "faq": knowledge.suggestions(),
+        "integrations": {
+            "region": region,
+            "lambda": {
+                "configured": bool(region and function_name),
+                "label": "AWS Lambda financial tools",
+                "detail": function_name or "LAMBDA_FUNCTION_NAME is not configured",
+            },
+            "bedrock": {
+                "configured": bool(region and model_id),
+                "label": "Amazon Bedrock explanation",
+                "detail": model_id or "BEDROCK_MODEL_ID is not configured",
+            },
+            "dataset": {
+                "configured": bool(region and function_name and data_prefix),
+                "label": "Versioned Amazon S3 dataset",
+                "detail": (
+                    f"s3://{data_bucket}/{data_prefix}/"
+                    if data_bucket
+                    else f"{data_prefix}/ via Lambda; verified after a successful live run"
+                ),
+            },
+        },
+    }

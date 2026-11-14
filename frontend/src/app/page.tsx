@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AllocationComparison } from "@/components/AllocationComparison";
-import { MetricCards } from "@/components/MetricCards";
-import { PerformanceChart } from "@/components/PerformanceChart";
-import { TraceTimeline } from "@/components/TraceTimeline";
-import { DEMO_QUESTION, type AnalysisResponse } from "@/lib/api";
+import { DEMO_QUESTION } from "@/lib/api";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
 
 
@@ -16,8 +13,6 @@ const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 
 
 export default function Home() {
   const [personaId, setPersonaId] = useState<PersonaId>("amira");
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const persona = PERSONAS.find((item) => item.id === personaId)!;
 
   return (
@@ -39,7 +34,7 @@ export default function Home() {
               <button
                 key={item.id}
                 className={item.id === personaId ? "active" : ""}
-                onClick={() => { setPersonaId(item.id); setResult(null); setError(null); }}
+                onClick={() => setPersonaId(item.id)}
                 role="tab"
                 aria-selected={item.id === personaId}
               >
@@ -64,14 +59,17 @@ export default function Home() {
         </div>
         <div className="question-row">
           <h2>“{DEMO_QUESTION}”</h2>
-          <Link className="analyze-button" href={`/dashboard?persona=${personaId}`}>
+          <Link
+            className="analyze-button"
+            href={{ pathname: "/dashboard", query: { persona: personaId, run: "1" } }}
+          >
             <span>Analyze with live AWS</span>
             <b>↗</b>
           </Link>
         </div>
         <AllocationComparison
-          current={result?.current_allocations ?? CURRENT}
-          proposed={result?.proposed_allocations ?? PROPOSED}
+          current={CURRENT}
+          proposed={PROPOSED}
         />
         <div className="method-strip">
           <span><b>S3</b> Versioned market data</span>
@@ -81,76 +79,14 @@ export default function Home() {
         </div>
       </section>
 
-      {error && (
-        <section className="error-banner" role="alert">
-          <div><span>Connection required</span><strong>{error}</strong></div>
-          <p>No substitute result is shown. Configure the approved Lambda and Bedrock services, then retry.</p>
-        </section>
-      )}
-
-      {result ? (
-        <section className="results" aria-live="polite">
-          <div className={`conclusion ${result.conclusion}`}>
-            <span className="eyebrow">Evidence-backed answer</span>
-            <div>
-              <h2>{result.conclusion === "risk_reduced" ? "Measured risk decreased." : "The evidence is mixed."}</h2>
-              <p>{result.answer}</p>
-            </div>
-            <small>Bedrock model<br /><b>{result.model_id}</b></small>
-          </div>
-
-          <section className="result-section">
-            <header className="section-heading">
-              <div><span>02</span><h2>What changed</h2></div>
-              <p>Every value comes from the deterministic Lambda calculation.</p>
-            </header>
-            <MetricCards metrics={result.metrics} />
-            <PerformanceChart points={result.performance_series} />
-          </section>
-
-          <section className="result-section two-column" id="method">
-            <div>
-              <header className="section-heading compact">
-                <div><span>03</span><h2>Observable delegation</h2></div>
-              </header>
-              <TraceTimeline trace={result.trace} />
-            </div>
-            <div className="evidence-panel">
-              <header className="section-heading compact">
-                <div><span>04</span><h2>Controls and evidence</h2></div>
-              </header>
-              <div className="governance-list">
-                {result.governance.map((finding) => (
-                  <article key={finding.rule_id} className={finding.severity}>
-                    <span>{finding.rule_id.replaceAll("_", " ")}</span>
-                    <p>{finding.message}</p>
-                  </article>
-                ))}
-              </div>
-              <details open>
-                <summary>Calculation assumptions</summary>
-                <ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
-              </details>
-              <details>
-                <summary>Limitations</summary>
-                <ul>{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
-              </details>
-              <details>
-                <summary>Source objects</summary>
-                <ul className="source-list">{result.data_sources.map((item) => <li key={item}>{item}</li>)}</ul>
-              </details>
-            </div>
-          </section>
-        </section>
-      ) : (
-        <section className="preflight">
-          <div><span>02</span><h2>Ready for a real AWS run</h2></div>
-          <p>
-            The dashboard will populate only after the approved S3 dataset, financial Lambda,
-            and Bedrock model respond. Local placeholder metrics are intentionally disabled.
-          </p>
-        </section>
-      )}
+      <section className="preflight">
+        <div><span>02</span><h2>Continue in the demo workspace</h2></div>
+        <p>
+          The app workspace runs the approved S3-backed Lambda calculation, asks Bedrock for a
+          grounded explanation, and shows the observable agent trace. No substitute live result
+          is rendered on this landing page.
+        </p>
+      </section>
 
       <footer>
         <div className="brand"><span>PG</span><div>PortfolioGuard <b>AI</b></div></div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/dashboard/Header";
 import { RiskMeter } from "@/components/dashboard/RiskMeter";
 import { currentProfile } from "@/components/dashboard/RiskSummary";
-import { api, type Account } from "@/lib/chatApi";
+import { api, type Account } from "@/lib/api";
 import { RISK_LEVEL, RISK_PROFILES } from "@/lib/profiles";
 
 const PERSONA_INFO: Record<string, { age: number; goal: string; horizon: string; prefs: string[] }> = {
@@ -25,7 +25,7 @@ export default function ProfilePage() {
     <div className="min-h-screen">
       <Header />
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
-        <Link href="/" className="text-sm text-brand-600 hover:text-brand-700">← Back to dashboard</Link>
+        <Link href="/dashboard" className="text-sm text-brand-600 hover:text-brand-700">← Back to dashboard</Link>
 
         <section className="flex items-center gap-5 rounded-lg bg-white p-6 ring-1 ring-slate-200">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-100 text-3xl font-semibold text-brand-700">D</div>

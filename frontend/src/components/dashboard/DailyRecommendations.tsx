@@ -1,6 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
-import type { Account } from "@/lib/chatApi";
+import type { Account } from "@/lib/api";
 
 type Rec = { title: string; detail: string; ask: string; tag: string };
 

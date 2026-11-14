@@ -1,27 +1,55 @@
 """Macro Signal Agent: rates, yield curve, unemployment from the starter dataset."""
 import csv
+import math
 import os
 from pathlib import Path
 from typing import Any, Dict, List
 
-DATA_DIR = Path(os.getenv("DATA_DIR", Path(__file__).parents[4] / "data"))
+DEFAULT_DATA_DIR = Path(__file__).resolve().parents[4] / "hackathon_info" / "alphaforge_starter"
+DATA_DIR = Path(os.getenv("MACRO_DATA_DIR", DEFAULT_DATA_DIR))
+REQUIRED_SERIES = {
+    "DGS10",
+    "DGS2",
+    "BD.CDN.10YR.DQ.YLD",
+    "BD.CDN.2YR.DQ.YLD",
+    "UNRATE",
+}
 
 
 def _series() -> Dict[str, List[tuple]]:
     out: Dict[str, List[tuple]] = {}
-    with open(DATA_DIR / "macro_rates.csv", newline="") as f:
+    seen = set()
+    with (DATA_DIR / "macro_rates.csv").open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            out.setdefault(row["series_id"], []).append((row["date"], float(row["value"])))
+            series_id = row.get("series_id", "")
+            date = row.get("date", "")
+            value = float(row.get("value", ""))
+            if not series_id or not date or not math.isfinite(value):
+                raise ValueError("macro dataset contains an invalid observation")
+            key = (series_id, date)
+            if key in seen:
+                raise ValueError(f"macro dataset contains duplicate observation: {series_id} {date}")
+            seen.add(key)
+            out.setdefault(series_id, []).append((date, value))
     for v in out.values():
         v.sort()
+    missing = REQUIRED_SERIES.difference(out)
+    if missing:
+        raise ValueError(f"macro dataset is missing required series: {', '.join(sorted(missing))}")
+    if len(out["UNRATE"]) < 13:
+        raise ValueError("macro dataset needs at least 13 unemployment observations")
     return out
 
 
 def recession_signals() -> Dict[str, Any]:
     try:
         s = _series()
-    except FileNotFoundError:
-        return {"metrics": {}, "sources": [], "warnings": ["macro_rates.csv not found in data/"]}
+    except (FileNotFoundError, KeyError, TypeError, ValueError) as exc:
+        return {
+            "metrics": {},
+            "sources": [],
+            "warnings": [f"Historical macro indicators are unavailable: {exc}"],
+        }
 
     us10, us2 = s["DGS10"][-1], s["DGS2"][-1]
     ca10, ca2 = s["BD.CDN.10YR.DQ.YLD"][-1], s["BD.CDN.2YR.DQ.YLD"][-1]
@@ -58,5 +86,7 @@ def recession_signals() -> Dict[str, Any]:
             "FRED: DGS10, DGS2, UNRATE (macro_rates.csv)",
             "Bank of Canada: BD.CDN.10YR.DQ.YLD, BD.CDN.2YR.DQ.YLD (macro_rates.csv)",
         ],
-        "warnings": ["Indicators describe the past; they do not predict a recession."],
+        "warnings": [
+            "Indicators are historical reference data only; they are excluded from portfolio backtests and do not predict a recession."
+        ],
     }

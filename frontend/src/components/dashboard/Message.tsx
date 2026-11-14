@@ -1,4 +1,4 @@
-import type { ChatResponse } from "@/lib/chatApi";
+import type { ChatResponse } from "@/lib/api";
 import { ProposalCard } from "./ProposalCard";
 
 export type ChatMessage =

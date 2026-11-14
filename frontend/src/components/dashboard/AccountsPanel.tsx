@@ -1,4 +1,4 @@
-import type { Account } from "@/lib/chatApi";
+import type { Account } from "@/lib/api";
 import { RISK_LEVEL } from "@/lib/profiles";
 import { RiskMeter } from "./RiskMeter";
 
@@ -69,6 +69,9 @@ export function AccountsPanel({
       <button onClick={onNew} className="mt-3 text-sm font-medium text-link hover:underline">
         + Open an account
       </button>
+      <p className="mt-3 text-[11px] text-slate-400">
+        Fictional accounts are stored in memory for this demo session only.
+      </p>
     </section>
   );
 }

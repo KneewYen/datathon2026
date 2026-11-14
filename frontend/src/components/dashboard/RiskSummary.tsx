@@ -1,4 +1,4 @@
-import type { Account } from "@/lib/chatApi";
+import type { Account } from "@/lib/api";
 import { RiskMeter } from "./RiskMeter";
 import { RISK_LEVEL, RISK_PROFILES } from "@/lib/profiles";
 

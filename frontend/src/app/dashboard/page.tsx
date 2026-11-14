@@ -1,12 +1,21 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { AccountsPanel } from "@/components/dashboard/AccountsPanel";
 import { Message, type ChatMessage } from "@/components/dashboard/Message";
 import { RiskSummary } from "@/components/dashboard/RiskSummary";
 import { Header } from "@/components/dashboard/Header";
 import { PillButton } from "@/components/dashboard/PillButton";
 import { DailyRecommendations } from "@/components/dashboard/DailyRecommendations";
-import { api, type Account, type ChatResponse } from "@/lib/chatApi";
+import { LiveAnalysisPanel } from "@/components/dashboard/LiveAnalysisPanel";
+import {
+  api,
+  runAnalysis,
+  type Account,
+  type AnalysisResponse,
+  type ApiMeta,
+  type ChatResponse,
+} from "@/lib/api";
+import { type PersonaId } from "@/lib/personas";
 import { FAQ } from "@/lib/profiles";
 
 const WELCOME: ChatResponse = {
@@ -19,22 +28,66 @@ const WELCOME: ChatResponse = {
   suggestions: FAQ,
 };
 
-export default function Home() {
+type SearchParams = Promise<{ persona?: string | string[]; run?: string | string[] }>;
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function personaFrom(value: string | undefined): PersonaId {
+  return value === "mateo" || value === "robert" ? value : "amira";
+}
+
+export default function DashboardPage({ searchParams }: { searchParams: SearchParams }) {
+  const query = use(searchParams);
+  const initialPersona = personaFrom(first(query.persona));
+  const autoRun = first(query.run) === "1";
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", data: WELCOME }]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<Account | null>(null);
+  const [personaId, setPersonaId] = useState<PersonaId>(initialPersona);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [metaError, setMetaError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const analysisStarted = useRef(false);
 
   useEffect(() => {
-    api.accounts().then(setAccounts).catch(() => {});
+    api.accounts().then(setAccounts).catch((reason) => {
+      setError(reason instanceof Error ? reason.message : "Could not load accounts");
+    });
+    api.meta().then(setMeta).catch((reason) => {
+      setMetaError(reason instanceof Error ? reason.message : "Could not reach the API");
+    });
   }, []);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  const executeAnalysis = useCallback(async (requestedPersona: PersonaId) => {
+    setAnalysisBusy(true);
+    setAnalysisError(null);
+    try {
+      setAnalysis(await runAnalysis(requestedPersona));
+    } catch (reason) {
+      setAnalysis(null);
+      setAnalysisError(reason instanceof Error ? reason.message : "Live AWS analysis failed");
+    } finally {
+      setAnalysisBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!autoRun || analysisStarted.current) return;
+    analysisStarted.current = true;
+    void executeAnalysis(initialPersona);
+  }, [autoRun, executeAnalysis, initialPersona]);
 
   async function run(fn: () => Promise<ChatResponse>, userText?: string, resolveId?: string) {
     setBusy(true);
@@ -73,6 +126,12 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const changePersona = (next: PersonaId) => {
+    setPersonaId(next);
+    setAnalysis(null);
+    setAnalysisError(null);
+  };
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -89,6 +148,17 @@ export default function Home() {
 
         {/* Middle: chat + accounts */}
         <div className="min-w-0 space-y-6">
+        <LiveAnalysisPanel
+          personaId={personaId}
+          onPersonaChange={changePersona}
+          result={analysis}
+          busy={analysisBusy}
+          error={analysisError}
+          meta={meta}
+          metaError={metaError}
+          onRun={() => void executeAnalysis(personaId)}
+        />
+
         {/* Chat */}
         <section className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
           <div ref={scrollRef} className="h-[420px] space-y-4 overflow-y-auto bg-white p-5">
