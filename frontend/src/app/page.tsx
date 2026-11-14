@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AllocationComparison } from "@/components/AllocationComparison";
-import { DEMO_QUESTION } from "@/lib/api";
-import { PERSONAS, type PersonaId } from "@/lib/personas";
+import { PERSONAS, allocationLabel, formatCad, proposedAllocations, type PersonaId } from "@/lib/personas";
 
 
-const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
-const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
 
 
 export default function Home() {
@@ -47,6 +44,10 @@ export default function Home() {
             <div><strong>{persona.horizon}</strong><span>horizon</span></div>
             <div><strong>{persona.risk}</strong><span>risk profile</span></div>
           </div>
+          <div className="persona-holdings">
+            <div><strong>{formatCad(persona.startingBalance)}</strong><span>starting balance</span></div>
+            <div><strong>{allocationLabel(persona.allocations)}</strong><span>starting allocation</span></div>
+          </div>
           <p>{persona.goal}. The scenario remains fictional and does not use client data.</p>
         </aside>
       </section>
@@ -58,7 +59,7 @@ export default function Home() {
           <b>TFSA</b>
         </div>
         <div className="question-row">
-          <h2>“{DEMO_QUESTION}”</h2>
+          <h2>“{persona.scenario.question}”</h2>
           <Link
             className="analyze-button"
             href={{ pathname: "/dashboard", query: { persona: personaId, run: "1" } }}
@@ -68,8 +69,8 @@ export default function Home() {
           </Link>
         </div>
         <AllocationComparison
-          current={CURRENT}
-          proposed={PROPOSED}
+          current={persona.allocations}
+          proposed={proposedAllocations(persona)}
         />
         <div className="method-strip">
           <span><b>S3</b> Versioned market data</span>

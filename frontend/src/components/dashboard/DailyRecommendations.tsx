@@ -68,8 +68,7 @@ export function DailyRecommendations({
     () => ""
   );
   return (
-    <div className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-6">
-      <h2 className="text-xl font-semibold">Daily recommendations</h2>
+    <div className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-6">      <h2 className="text-xl font-semibold">Daily recommendations</h2>
       <div className="h-5 text-xs text-slate-500">{today}</div>
       <ul className="mt-4 flex-1 overflow-y-auto border-t border-slate-200">
         {recommendations(accounts).map((r) => (

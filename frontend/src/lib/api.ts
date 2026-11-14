@@ -1,4 +1,4 @@
-import type { PersonaId } from "./personas";
+import { PERSONAS, type PersonaId } from "./personas";
 
 export type Proposal = {
   id: string;
@@ -39,6 +39,7 @@ export type Account = {
   persona: string;
   horizon_agent: string;
   strategies: string[];
+  balance: number;
 };
 
 export type IntegrationStatus = {
@@ -129,13 +130,16 @@ export const DEMO_QUESTION =
   "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
 
 export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
+  const persona = PERSONAS.find((item) => item.id === persona_id)!;
   const response = await fetch(`${API_URL}/api/analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       persona_id,
-      question: DEMO_QUESTION,
+      question: persona.scenario.question,
       account_type: "TFSA",
+      strategy_allocations: persona.allocations,
+      shift: { from_strategy: persona.scenario.from, to_strategy: persona.scenario.to, amount: persona.scenario.amount },
     }),
   });
   if (!response.ok) {
@@ -175,5 +179,9 @@ export const api = {
   approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk }),
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
   accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
+  deleteAccount: async (id: string) => {
+    const response = await fetch(`${API_URL}/api/accounts/${id}?user_id=${encodeURIComponent(USER_ID)}`, { method: "DELETE" });
+    if (!response.ok) throw new Error(`Could not remove account (${response.status})`);
+  },
   meta: () => get<ApiMeta>("/api/meta"),
 };

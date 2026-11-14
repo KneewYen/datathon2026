@@ -126,6 +126,16 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const deleteAccount = async (accountId: string) => {
+    try {
+      await api.deleteAccount(accountId);
+      setAccounts((list) => list.filter((a) => a.id !== accountId));
+      setSelected((current) => (current?.id === accountId ? null : current));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not remove account");
+    }
+  };
+
   const changePersona = (next: PersonaId) => {
     setPersonaId(next);
     setAnalysis(null);
@@ -207,10 +217,13 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
 
         {/* Accounts */}
         <AccountsPanel
+          personaId={personaId}
+          analysis={analysis}
           accounts={accounts}
           selectedId={selected?.id ?? null}
           onSelect={selectAccount}
           onNew={() => send("I want to create a new account")}
+          onDelete={deleteAccount}
         />
 
         </div>

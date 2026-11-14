@@ -5,14 +5,10 @@ import { MetricCards } from "@/components/MetricCards";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { TraceTimeline } from "@/components/TraceTimeline";
 import {
-  DEMO_QUESTION,
   type AnalysisResponse,
   type ApiMeta,
 } from "@/lib/api";
-import { PERSONAS, type PersonaId } from "@/lib/personas";
-
-const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
-const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
+import { PERSONAS, allocationLabel, formatCad, proposedAllocations, type PersonaId } from "@/lib/personas";
 
 function StatusDot({ ready, verified }: { ready: boolean; verified: boolean }) {
   const color = verified ? "bg-emerald-500" : ready ? "bg-amber-400" : "bg-slate-300";
@@ -76,7 +72,7 @@ export function LiveAnalysisPanel({
               Live AWS scenario
             </p>
             <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-snug sm:text-2xl">
-              {DEMO_QUESTION}
+              {persona.scenario.question}
             </h1>
             <p className="mt-2 text-sm text-slate-300">
               {persona.name} · {persona.horizon} · {persona.risk} risk profile
@@ -113,6 +109,10 @@ export function LiveAnalysisPanel({
               </button>
             ))}
           </div>
+          <p className="text-xs text-slate-500">
+            <b className="text-slate-700">{formatCad(persona.startingBalance)}</b> starting balance ·{" "}
+            {allocationLabel(persona.allocations)}
+          </p>
           <div className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs sm:grid-cols-4">
             {services.map((service) => (
               <div key={service.name} className="flex items-start gap-2">
@@ -134,8 +134,8 @@ export function LiveAnalysisPanel({
 
         <div className="rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
           <AllocationComparison
-            current={result?.current_allocations ?? CURRENT}
-            proposed={result?.proposed_allocations ?? PROPOSED}
+            current={result?.current_allocations ?? persona.allocations}
+            proposed={result?.proposed_allocations ?? proposedAllocations(persona)}
           />
         </div>
 

@@ -66,6 +66,16 @@ def accounts(user_id: str = "demo") -> List[Dict[str, Any]]:
     return store.accounts(user_id)
 
 
+@router.delete("/accounts/{account_id}")
+def delete_account(account_id: str, user_id: str = "demo") -> Dict[str, bool]:
+    from app import store
+
+    if not store.delete_account(user_id, account_id):
+        raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+    return {"deleted": True}
+
+
+
 @router.get("/meta")
 def meta() -> Dict[str, Any]:
     from app.agents import knowledge
