@@ -13,7 +13,7 @@ export function RiskSummary({ accounts }: { accounts: Account[] }) {
   const counts = RISK_PROFILES.map((p) => ({ ...p, n: accounts.filter((a) => a.risk === p.id).length }));
 
   return (
-    <div className="grid gap-5 rounded-3xl md:grid-cols-[1fr_1fr_1.4fr] md:items-center bg-gradient-to-br from-sky-500 to-sky-400 p-6 text-white shadow-xl shadow-sky-200">
+    <div className="flex h-full flex-col gap-6 rounded-3xl bg-gradient-to-br from-sky-500 to-sky-400 p-6 text-white shadow-xl shadow-sky-200">
       <div>
         <div className="text-xs uppercase tracking-wider text-sky-100">Your current risk type</div>
         <div className="mt-1 text-3xl font-semibold">{profile ? profile.label : "Not set yet"}</div>
@@ -34,7 +34,7 @@ export function RiskSummary({ accounts }: { accounts: Account[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 text-center">
+      <div className="grid grid-cols-2 gap-2 text-center">
         <div className="rounded-xl bg-white/15 p-2">
           <div className="text-xl font-semibold">{accounts.length}</div>
           <div className="text-xs text-sky-100">Accounts</div>

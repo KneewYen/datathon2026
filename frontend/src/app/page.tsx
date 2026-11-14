@@ -76,7 +76,13 @@ export default function Home() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
+      <main className="mx-auto grid max-w-[1500px] gap-6 px-4 py-8 lg:grid-cols-[300px_1fr_320px]">
+        {/* Left: current risk type, top to bottom */}
+        <aside className="lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
+          <RiskSummary accounts={accounts} />
+        </aside>
+
+        {/* Middle: chat + accounts */}
         <div className="min-w-0 space-y-6">
         {/* Chat */}
         <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-sky-100/60 ring-1 ring-sky-100">
@@ -123,8 +129,6 @@ export default function Home() {
           </form>
         </section>
 
-        {/* Risk */}
-        <RiskSummary accounts={accounts} />
 
         {/* Accounts */}
         <AccountsPanel
@@ -136,7 +140,7 @@ export default function Home() {
 
         </div>
 
-        {/* Daily recommendations: right column, top to bottom */}
+        {/* Right: daily recommendations, top to bottom */}
         <aside className="lg:sticky lg:top-[73px] lg:h-[calc(100vh-73px-4rem)]">
           <DailyRecommendations
             accounts={accounts}
@@ -147,7 +151,7 @@ export default function Home() {
           />
         </aside>
 
-        <p className="pb-6 text-center text-xs text-slate-400 lg:col-span-2">
+        <p className="pb-6 text-center text-xs text-slate-400 lg:col-span-3">
           Simulation only · Fictional accounts · Not financial advice · No real trades
         </p>
       </main>
