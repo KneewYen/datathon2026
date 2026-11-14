@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { Proposal } from "@/lib/api";
 import { RISK_PROFILES } from "@/lib/profiles";
+import { RiskMeter } from "./RiskMeter";
 
 export function ProposalCard({
   proposal,
@@ -16,37 +17,54 @@ export function ProposalCard({
 }) {
   const [risk, setRisk] = useState(proposal.risk);
   return (
-    <div className="mt-3 space-y-3 rounded-lg border border-neutral-300 p-3 dark:border-neutral-700">
-      <div className="text-sm">
-        <b>{proposal.account_type}</b> · {proposal.horizon_label}
+    <div className="mt-3 space-y-4 rounded-xl bg-sky-50/60 p-4 ring-1 ring-sky-100">
+      <div>
+        <div className="text-xs font-medium uppercase tracking-wider text-sky-600">Proposed account</div>
+        <div className="text-base font-semibold">
+          {proposal.account_type} <span className="font-normal text-slate-500">· {proposal.horizon_label}</span>
+        </div>
       </div>
-      <fieldset disabled={disabled} className="space-y-1">
-        <legend className="mb-1 text-xs text-neutral-500">Risk profile</legend>
-        <div className="flex flex-wrap gap-2">
-          {RISK_PROFILES.map((r) => (
-            <label
-              key={r.id}
-              className={`cursor-pointer rounded-full border px-3 py-1 text-sm ${
-                risk === r.id
-                  ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
-                  : "border-neutral-300 dark:border-neutral-700"
-              }`}
-            >
-              <input type="radio" name={`risk-${proposal.id}`} value={r.id} checked={risk === r.id} onChange={() => setRisk(r.id)} className="sr-only" />
-              {r.label} <span className="opacity-60">· {r.persona}</span>
-            </label>
-          ))}
+      <fieldset disabled={disabled}>
+        <legend className="mb-2 text-xs text-slate-500">Choose risk type</legend>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {RISK_PROFILES.map((r) => {
+            const on = risk === r.id;
+            return (
+              <label
+                key={r.id}
+                className={`cursor-pointer rounded-xl bg-white p-3 ring-1 transition hover:ring-sky-300 ${
+                  on ? "ring-2 ring-sky-500" : "ring-sky-100"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={`risk-${proposal.id}`}
+                  value={r.id}
+                  checked={on}
+                  onChange={() => setRisk(r.id)}
+                  className="sr-only"
+                />
+                <div className="text-sm font-semibold">{r.label}</div>
+                <div className="mb-2 text-xs text-slate-500">Like {r.persona}</div>
+                <RiskMeter level={r.level} />
+              </label>
+            );
+          })}
         </div>
       </fieldset>
       <div className="flex gap-2">
         <button
           disabled={disabled}
           onClick={() => onApprove(risk)}
-          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40 dark:bg-white dark:text-neutral-900"
+          className="rounded-full bg-sky-500 px-5 py-2 text-sm font-medium text-white shadow-sm shadow-sky-200 transition hover:bg-sky-600 disabled:opacity-40"
         >
           Approve & create
         </button>
-        <button disabled={disabled} onClick={onReject} className="rounded-lg px-3 py-1.5 text-sm underline disabled:opacity-40">
+        <button
+          disabled={disabled}
+          onClick={onReject}
+          className="rounded-full px-4 py-2 text-sm text-slate-500 transition hover:bg-white disabled:opacity-40"
+        >
           Decline
         </button>
       </div>
