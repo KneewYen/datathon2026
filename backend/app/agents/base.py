@@ -1,21 +1,17 @@
-from typing import Any, Dict, List
+from __future__ import annotations
 
-from pydantic import BaseModel
+from abc import ABC, abstractmethod
+from typing import Any, Dict
 
-
-class AgentResult(BaseModel):
-    """Common response schema shared by all agents."""
-
-    agent: str
-    summary: str = ""
-    metrics: Dict[str, Any] = {}
-    data_sources: List[str] = []
-    assumptions: List[str] = []
-    warnings: List[str] = []
+from app.domain.models import AgentFinding
 
 
-class Agent:
+class Agent(ABC):
+    """Agent boundary: agents plan and interpret; deterministic tools calculate."""
+
     name = "agent"
+    role = ""
 
-    def run(self, context: Dict[str, Any]) -> AgentResult:
+    @abstractmethod
+    def plan(self, context: Dict[str, Any]) -> AgentFinding:
         raise NotImplementedError

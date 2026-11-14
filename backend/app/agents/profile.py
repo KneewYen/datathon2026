@@ -1,7 +1,10 @@
-"""Investor Profile Agent: fictional personas from the case brief."""
+"""Investor profile lookup for the three fictional challenge personas."""
 
-PERSONAS = {
-    "amira": {"age": 26, "risk": "high", "horizon_years": "15+", "prefs": ["AI/tech", "crypto", "diversified"]},
-    "mateo": {"age": 41, "risk": "moderate", "horizon_years": "8-12", "prefs": ["ESG", "balanced", "no speculation"]},
-    "robert": {"age": 59, "risk": "low-moderate", "horizon_years": "3-5", "prefs": ["capital preservation", "blue chips"]},
-}
+from app.domain.presets import PERSONAS
+
+
+def get_persona(persona_id: str) -> dict:
+    try:
+        return PERSONAS[persona_id]
+    except KeyError as exc:
+        raise ValueError(f"unknown persona: {persona_id}") from exc
