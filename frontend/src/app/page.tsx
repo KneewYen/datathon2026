@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AllocationComparison } from "@/components/AllocationComparison";
 import { MetricCards } from "@/components/MetricCards";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { TraceTimeline } from "@/components/TraceTimeline";
-import { DEMO_QUESTION, runAnalysis, type AnalysisResponse } from "@/lib/api";
+import { DEMO_QUESTION, type AnalysisResponse } from "@/lib/api";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
 
 
@@ -16,22 +17,8 @@ const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 
 export default function Home() {
   const [personaId, setPersonaId] = useState<PersonaId>("amira");
   const [result, setResult] = useState<AnalysisResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const persona = PERSONAS.find((item) => item.id === personaId)!;
-
-  async function analyze() {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      setResult(await runAnalysis(personaId));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Live analysis failed");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <main>
@@ -85,10 +72,10 @@ export default function Home() {
         </div>
         <div className="question-row">
           <h2>“{DEMO_QUESTION}”</h2>
-          <button className="analyze-button" onClick={analyze} disabled={loading}>
-            <span>{loading ? "Running AWS analysis" : "Analyze with live AWS"}</span>
-            <b>{loading ? "···" : "↗"}</b>
-          </button>
+          <Link className="analyze-button" href={`/dashboard?persona=${personaId}`}>
+            <span>Analyze with live AWS</span>
+            <b>↗</b>
+          </Link>
         </div>
         <AllocationComparison
           current={result?.current_allocations ?? CURRENT}

@@ -1,3 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #00314d;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-brand);
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand palette: red + white, inspired by Canadian bank branding (approximate values) */
+  --color-brand-50: #fff4f4;
+  --color-brand-100: #fde4e5;
+  --color-brand-200: #fbcacc;
+  --color-brand-300: #f6a1a5;
+  --color-brand-400: #ee6a71;
+  --color-brand-500: #e41c23;
+  --color-brand-600: #c4151c;
+  --color-brand-700: #a01218;
+  --color-brand-800: #7d0f14;
+  --color-brand-900: #5f0c10;
+
+  /* Neutrals and navy, taken from the National Bank site palette */
+  --color-navy: #00314d;
+  --color-link: #1572c5;
+  --color-slate-50: #f1f1f1;
+  --color-slate-100: #eef6fb;
+  --color-slate-200: #e1e1e1;
+  --color-slate-300: #d2d2d2;
+  --color-slate-400: #7993a2;
+  --color-slate-500: #565656;
+  --color-slate-600: #425865;
+  --color-slate-700: #303030;
+}
+
+body {
+  background: #f1f1f1;
+  color: var(--foreground);
+  font-family: var(--font-brand), Arial, sans-serif;
+  min-height: 100vh;
+}
+
+/* ---- Live AWS analysis page (Nicolas) ---- */
 :root {
   --ink: #00314d;
   --muted: #565656;
