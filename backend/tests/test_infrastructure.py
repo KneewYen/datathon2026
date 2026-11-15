@@ -177,6 +177,10 @@ def test_backend_lambda_builds_exclude_the_test_tree() -> None:
     makefile = (ROOT / "backend" / "Makefile").read_text()
     assert "cp -R app" in makefile
     assert "tests" not in makefile
+    assert "--platform manylinux2014_aarch64" in makefile
+    assert "--only-binary=:all:" in makefile
+    assert "-name __pycache__" in makefile
+    assert "-name '*.pyc'" in makefile
 
 
 def test_standard_workflow_has_a_bounded_execution_timeout() -> None:

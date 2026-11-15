@@ -29,6 +29,47 @@ def test_local_dashboard_origins_are_allowed() -> None:
         assert response.headers["access-control-allow-origin"] == origin
 
 
+def test_investment_preflight_allows_auth_headers_without_invoking_handler(
+    monkeypatch,
+) -> None:
+    def fail(_request):
+        raise AssertionError("investment analysis handler must not run for preflight")
+
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr("app.api.chat.start_execution", fail)
+
+    response = TestClient(app).options(
+        "/api/investment-analysis",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert 200 <= response.status_code < 300
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    allowed_headers = {
+        header.strip().lower()
+        for header in response.headers["access-control-allow-headers"].split(",")
+    }
+    assert {"authorization", "content-type"} <= allowed_headers
+
+
+def test_investment_preflight_rejects_disallowed_origin() -> None:
+    response = TestClient(app).options(
+        "/api/investment-analysis",
+        headers={
+            "Origin": "https://untrusted.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
+
+
 def test_analysis_validation_rejects_invalid_weight_total() -> None:
     response = TestClient(app).post(
         "/api/analysis",
