@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { translate } from "@/i18n";
-import { api, runAnalysis, type AnalysisResponse, type ApiMeta } from "@/lib/api";
+import { api, runAnalysis, type AnalysisInput, type AnalysisResponse, type ApiMeta } from "@/lib/api";
 import type { PersonaId } from "@/lib/personas";
 import { usePersona } from "./persona";
 
@@ -11,7 +11,7 @@ type AnalysisContext = {
   error: string | null;
   meta: ApiMeta | null;
   metaError: string | null;
-  run: () => Promise<void>;
+  run: (input?: AnalysisInput) => Promise<void>;
 };
 
 const Context = createContext<AnalysisContext | null>(null);
@@ -34,11 +34,11 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       .catch((reason) => setMetaError(reason instanceof Error ? reason.message : translate("analysis.reachFail")));
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (input?: AnalysisInput) => {
     setBusy(true);
     setFailure(null);
     try {
-      setStored({ personaId, value: await runAnalysis(personaId) });
+      setStored({ personaId, value: await runAnalysis(personaId, input) });
     } catch (reason) {
       setStored(null);
       setFailure({ personaId, value: reason instanceof Error ? reason.message : translate("analysis.failedGeneric") });

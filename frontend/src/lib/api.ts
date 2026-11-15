@@ -1,5 +1,5 @@
 import { getLang, translate } from "@/i18n";
-import { PERSONAS, type PersonaId } from "./personas";
+import { PERSONAS, type PersonaId, type Scenario } from "./personas";
 
 export type Proposal = {
   id: string;
@@ -178,18 +178,24 @@ export type TradeCheck = {
   computed_by: string;
 };
 
-export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
+export type AnalysisInput = { question: string; shift: Scenario };
+
+export async function runAnalysis(persona_id: PersonaId, input?: AnalysisInput): Promise<AnalysisResponse> {
   const persona = PERSONAS.find((item) => item.id === persona_id)!;
+  const { question, shift } = input ?? {
+    question: translate(`persona.${persona_id}.scenario`),
+    shift: persona.scenario,
+  };
   const response = await fetch(`${API_URL}/api/analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       persona_id,
-      question: translate(`persona.${persona_id}.scenario`),
+      question,
       language: getLang(),
       account_type: "TFSA",
       strategy_allocations: persona.allocations,
-      shift: { from_strategy: persona.scenario.from, to_strategy: persona.scenario.to, amount: persona.scenario.amount },
+      shift: { from_strategy: shift.from, to_strategy: shift.to, amount: shift.amount },
     }),
   });
   if (!response.ok) {
