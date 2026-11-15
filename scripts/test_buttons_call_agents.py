@@ -55,9 +55,11 @@ def http(method: str, path: str, body):
 
 
 def completed(logs, runtime: str, start_ms: int, end_ms: int) -> int:
+    """Invocations of this runtime in the window that belong to the test user: every AgentCore log line
+    carries the session ID, which contains the user ID, so the UI and other sessions are not counted."""
     count, token = 0, None
     while True:
-        kwargs = dict(logGroupName=f"/aws/bedrock-agentcore/runtimes/{runtime}-DEFAULT", startTime=start_ms, endTime=end_ms, filterPattern='"Invocation completed"')
+        kwargs = dict(logGroupName=f"/aws/bedrock-agentcore/runtimes/{runtime}-DEFAULT", startTime=start_ms, endTime=end_ms, filterPattern=f'"Invocation completed" "{USER}"')
         if token:
             kwargs["nextToken"] = token
         page = logs.filter_log_events(**kwargs)
@@ -88,7 +90,7 @@ def main() -> int:
     failures = 0
     print(f"\n{'button':<32} " + " ".join(f"{a[:5]:>6}" for a in RUNTIMES) + "   result")
     for name, expected, start, end, code in windows:
-        counts = {agent: completed(logs, runtime, start, end + 20_000) for agent, runtime in RUNTIMES.items()}
+        counts = {agent: completed(logs, runtime, start, end + 5_000) for agent, runtime in RUNTIMES.items()}
         missing = sorted(a for a in expected if counts[a] == 0)
         ok = code == 200 and not missing
         failures += 0 if ok else 1

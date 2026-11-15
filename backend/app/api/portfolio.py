@@ -94,6 +94,7 @@ def trade_check(
     return _agents(
         "trade_check",
         {"ticker": ticker, "action": action, "persona": persona, "lang": lang, "live": live, "account_type": account_type, "user_id": user_id},
+        user_id,
     )
 
 

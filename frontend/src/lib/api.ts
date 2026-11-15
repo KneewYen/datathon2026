@@ -23,7 +23,7 @@ export type ChatMessage = {
 
 export type ChatResponse = {
   answer: string;
-  trace: Array<{ agent: string; action: string }>;
+  trace: Array<{ agent: string; action: string; runtime?: string }>;
   metrics: Record<string, string>;
   sources: string[];
   warnings: string[];
@@ -250,7 +250,7 @@ export type Explanation = {
 export type TradeCheck = {
   explanation?: Explanation | null;
   driver?: "market" | "company" | "mixed";
-  trace?: Array<{ agent: string; action: string }>;
+  trace?: Array<{ agent: string; action: string; runtime?: string }>;
   persona_fit?: PersonaFit | null;
   action: TradeAction;
   ticker: string;

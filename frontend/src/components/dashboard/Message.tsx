@@ -176,6 +176,11 @@ export function Message({
               {d.trace.map((step, i) => (
                 <li key={i}>
                   {i + 1}. <b className="text-slate-700">{agentName(step.agent)}</b>: {plain(step.action)}
+                  {step.runtime && (
+                    <span title="Amazon Bedrock AgentCore runtime that ran this step" className="ml-1.5 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                      AWS · {step.runtime}
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>
