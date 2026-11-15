@@ -136,6 +136,7 @@ def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
     resources = load_template()["Resources"]
     api = resources["BackendHttpApi"]["Properties"]
     client = resources["DemoUserPoolClient"]["Properties"]
+    events = resources["BackendApiFunction"]["Properties"]["Events"]
 
     assert api["Auth"]["DefaultAuthorizer"] == "CognitoJwtAuthorizer"
     assert api["DefaultRouteSettings"] == {
@@ -148,6 +149,13 @@ def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
         "authorization",
         "content-type",
     ]
+    assert events["ApiProxy"]["Properties"]["Method"] == "ANY"
+    assert events["ApiCorsPreflight"]["Properties"] == {
+        "ApiId": {"Ref": "BackendHttpApi"},
+        "Path": "/{proxy+}",
+        "Method": "OPTIONS",
+        "Auth": {"Authorizer": "NONE"},
+    }
     assert client["GenerateSecret"] is False
     assert client["AllowedOAuthFlows"] == ["code"]
     assert client["AllowedOAuthScopes"] == ["openid", "email"]

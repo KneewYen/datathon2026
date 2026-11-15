@@ -520,6 +520,14 @@ Resources:
             ApiId: !Ref BackendHttpApi
             Path: /{proxy+}
             Method: ANY
+        ApiCorsPreflight:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BackendHttpApi
+            Path: /{proxy+}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   BackendApiLogGroup:
     Type: AWS::Logs::LogGroup
