@@ -15,16 +15,16 @@ the system delegates it through account and strategy agents, calculates historic
 risk in AWS, applies governance rules, and uses Amazon Bedrock only to explain
 verified evidence.
 
-The first scenario asks:
+The flagship scenario asks:
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
 ## Why it is agentic
 
 ```text
 Global Orchestrator
-  → TFSA or RRSP Account Agent
-    → relevant Growth / Dividend / Momentum / Preservation Agents
+  → TFSA and RRSP Account Agents
+    → Growth / Momentum and Dividend / Preservation Agents
       → deterministic AWS Lambda financial tool
   → Governance Agent
   → Bedrock Explainability Agent
@@ -45,13 +45,13 @@ tests. Agents that do not contribute to a request are not invoked.
 - Historical observations are clearly separated from future outcomes.
 - The application cannot execute a trade.
 
-## Primary result
+## Primary decision support
 
-In the reviewed historical window, the proposed fictional shift lowers annualized
-volatility from 18.48% to 13.71% and improves maximum drawdown from -19.72% to
--15.53%. Historical annualized return also falls from 30.80% to 27.42%. The answer
-is therefore “lower measured historical risk, with a return trade-off,” not a
-recommendation or forecast.
+The system discovers existing direct NVIDIA holdings and covered QQQ/SPY overlap
+before simulating the purchase in each populated account. It compares account cash,
+company exposure, historical volatility, drawdown, concentration, objectives, and
+risk limits. If TFSA and RRSP agents disagree, governance preserves the conflict
+instead of forcing one recommendation.
 
 ## AWS contribution
 
@@ -70,9 +70,8 @@ an honest unavailable state instead of placeholder results.
 
 ## Status and next step
 
-The complete local vertical slice, infrastructure template, data manifest, tests,
-CI, and dashboard are ready. The template is configured for the organizer workshop
-in `us-east-1` and the US Nova Lite inference profile. Core AWS infrastructure has
-been deployed and verified. One bounded Lambda acceptance test read the versioned
-S3 dataset and matched the local deterministic engine exactly. The next separately
-gated step is one Nova Lite explanation test; Bedrock has not yet been invoked.
+The cross-account slice, tests, API, and dashboard are implemented locally. Core
+AWS infrastructure and the earlier strategy-shift Lambda were previously verified,
+but the new Lambda operations are not deployed. The next separately gated step is
+reviewing and deploying that package, followed by one bounded flagship invocation
+and one Nova Lite explanation test. Bedrock has not yet been invoked.

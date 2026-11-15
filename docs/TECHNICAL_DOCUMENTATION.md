@@ -7,9 +7,9 @@ investors. It is a decision-support prototype, not a trading system, portfolio
 manager, tax calculator, or source of personalized financial advice. No component
 can place or simulate the execution of a real order.
 
-The first end-to-end question is:
+The flagship end-to-end question is:
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
 The system answers with historical observations, explicit assumptions, data
 provenance, governance findings, and an observable agent trace.
@@ -19,14 +19,14 @@ provenance, governance findings, and an observable agent trace.
 ```text
 Browser
   └─ Next.js dashboard
-       └─ POST /api/analysis
+       └─ POST /api/investment-analysis
             └─ FastAPI
                  └─ Global Orchestrator
-                      ├─ TFSA or RRSP Account Agent
-                      │    ├─ source Strategy Agent
-                      │    └─ destination Strategy Agent
-                      ├─ AWS Lambda financial tool
+                      ├─ TFSA Account Agent → Growth + Momentum
+                      ├─ RRSP Account Agent → Dividend + Capital Preservation
+                      ├─ AWS Lambda financial tools
                       │    └─ versioned Amazon S3 dataset
+                      ├─ optional approved research provider
                       ├─ deterministic Governance Agent
                       └─ Explainability Agent
                            └─ Amazon Bedrock Converse API
@@ -43,9 +43,10 @@ AWS response with locally fabricated metrics.
 
 ### Global Orchestrator
 
-The orchestrator validates typed input, resolves the persona and account, records
-delegation, invokes the deterministic tool exactly once, applies governance, and
-passes a closed evidence packet to explainability. It does not calculate metrics.
+The orchestrator parses typed purchase intent, selects both populated accounts,
+records every delegation, dispatches only requested typed tools, caches shared
+results, applies governance, and passes a closed evidence packet to explainability.
+It does not calculate financial values.
 
 ### Account agents
 
@@ -54,8 +55,25 @@ passes a closed evidence packet to explainability. It does not calculate metrics
 - **RRSP Account Agent:** coordinates the fictional RRSP comparison and discloses
   that deductions, withdrawal taxation, and personal tax outcomes are out of scope.
 
-Only the source and destination strategy agents are invoked for a shift. This keeps
-delegation purposeful instead of calling decorative agents.
+For the flagship workflow, TFSA delegates to Growth and Momentum while RRSP
+delegates to Dividend and Capital Preservation. Each requests a distinct subset of
+exposure, market, research, and simulation operations; duplicate shared operations
+are cached but their delegated use remains visible in the trace.
+
+### Deterministic investment tools
+
+- `analyze_holdings_exposure` values direct holdings and covered QQQ/SPY indirect
+  NVIDIA exposure independently.
+- `market_snapshot` reports the latest dataset close converted to CAD plus trailing
+  historical returns, volatility, and drawdown; it is not a real-time quote.
+- `simulate_account_purchase` compares each account before and after a hypothetical
+  fractional-share purchase without changing total portfolio value or executing an order.
+  It also reports target/portfolio correlation and the direct target position's
+  covariance-based contribution to portfolio return variance when history is sufficient.
+
+The ETF fixture is offline, versioned, and records issuer URL and as-of date. A
+`ResearchProvider` interface separates live news/OSINT from financial calculations;
+the default provider returns an explicit unavailable result and never invents news.
 
 ### Strategy agents
 

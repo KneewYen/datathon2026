@@ -1,9 +1,9 @@
 # PortfolioGuard AI implementation plan
 
-**Status:** AWS Lambda vertical slice and demo workspace verified; awaiting Bedrock-test approval
-**Audit date:** 2026-11-14
-**Repository baseline:** post-`dev` merge at `09bd41b`
-**Implementation branch:** `nicolas-implementation`
+**Status:** Cross-account investment slice implemented locally; AWS redeployment and Bedrock verification require separate approval
+**Audit date:** 2026-11-15
+**Repository baseline:** `origin/nicolas-implementation` at `ac50d84`
+**Implementation branch:** `feature/multi-agent-investment-intelligence`
 **Product boundary:** Fictional portfolios and hypothetical analysis only. No real transactions or personalized financial advice.
 
 ## Implementation progress — 2026-11-14
@@ -14,14 +14,14 @@ before an end-to-end AWS proof.
 
 | Area | State | Evidence |
 | --- | --- | --- |
-| Global → account → strategy hierarchy | Implemented locally | Typed agents and an observable parent/delegation trace; TFSA and RRSP delegation tests |
-| Deterministic financial tool | Implemented locally | S3-backed Lambda operation `compare_strategy_shift`; manifest checksum verification, golden calculation, and data-quality tests |
-| First demo scenario | Implemented locally | 20-point TFSA growth-to-dividend comparison with volatility, drawdown, historical return, total return, concentration, and performance series |
+| Global → account → strategy hierarchy | Implemented locally | Both account agents delegate to relevant strategy agents; actual timestamped events preserve parent IDs, typed tool calls, cached reuse, evidence IDs, status, and errors |
+| Deterministic financial tools | Implemented locally; earlier operation deployed | `analyze_holdings_exposure`, `market_snapshot`, and `simulate_account_purchase` join the deployed `compare_strategy_shift`; all remain S3-backed and manifest-validated |
+| Flagship demo scenario | Implemented locally | $5,000 CAD NVIDIA comparison across populated TFSA/RRSP accounts, including direct/ETF exposure and suitability conflicts |
 | Governance and explainability | Implemented locally | Deterministic rules plus schema-validated Bedrock Converse response restricted to supplied evidence IDs |
-| Dashboard | Implemented and visually verified | Landing page hands persona context to the app-like `/dashboard`; one API client drives readiness, chat, accounts, Lambda-backed metrics, Bedrock explanation, trace, governance, assumptions, limitations, and sources |
+| Dashboard | Implemented and build-verified | Landing page hands off to the app-like `/dashboard`; flagship question input, account cards, evidence, research status, governance, and real execution tree are primary |
 | Conversational demo workspace | Implemented locally | Approval-gated fictional account creation, profile route, FAQ and historical macro flow, local CORS coverage, and visible session-only/simulation boundaries |
 | AWS infrastructure | Deployed and verified live | `portfolioguard-workshop` is `CREATE_COMPLETE`; versioned S3 integrity passed; one bounded Lambda run read S3 and matched all local metrics and 93 performance points exactly |
-| Real AWS acceptance | Lambda passed; Bedrock pending | Live Lambda request `dc653658-6c96-40fd-9310-f616a0b1e086` matched the deterministic local engine exactly; no Bedrock call has occurred |
+| Real AWS acceptance | Earlier Lambda operation passed; new operations and Bedrock pending | `compare_strategy_shift` matched local results in the prior approved run. This branch made no AWS calls or changes; new Lambda code is not deployed yet |
 | Advanced analytics | Deferred | VaR/CVaR, deeper momentum analytics, and monitoring dashboards follow the working vertical slice |
 | Submission package | Drafted | README, technical documentation, one-pager, and timed demo script are present; final screenshots and live AWS identifiers follow deployment |
 
@@ -40,11 +40,33 @@ historical comparison and not a prediction.
 
 PortfolioGuard AI will compare a fictional investor's current and hypothetical portfolios across TFSA and RRSP accounts. It will calculate historical performance and risk deterministically, apply persona and account constraints, and use Amazon Bedrock to turn verified evidence into a concise explanation. Every result will expose its sources, calculation window, assumptions, warnings, governance decisions, and agent execution trace.
 
-The approved primary demo question is:
+The current primary demo question is:
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
-This question is implemented first for all three personas while the architecture remains capable of TFSA, RRSP, and combined-account comparisons.
+The prior growth-to-dividend question remains an intact secondary workflow. The
+new workflow uses one versioned fictional investor and compares populated TFSA and
+RRSP accounts without depending on the persona-only examples.
+
+## Investment intelligence milestone — 2026-11-15
+
+- Added typed intent parsing with clarification for missing ticker, amount, or currency.
+- Added versioned fictional holdings and versioned issuer-sourced ETF constituent fixtures.
+- Added deterministic direct/indirect exposure, historical market snapshot, and
+  per-account purchase simulation tools to the Lambda handler.
+- Activated all four strategy agents through purposeful account delegation.
+- Added an explicit research-provider boundary that fails transparently when no
+  approved live source exists.
+- Added cross-account governance for cash floors, concentration, conservative
+  objectives, conflicting account outcomes, historical pricing, and missing research.
+- Added `POST /api/investment-analysis` and a primary dashboard workflow that
+  renders actual request events rather than scripted progress.
+- Added regression coverage for hierarchy, tool order, parent integrity, evidence,
+  ETF overlap, clarification, and changed purchase amounts.
+
+Next approval gate: review and deploy the updated Lambda package, then perform one
+bounded flagship invocation and one bounded Nova Lite explanation test. Until that
+happens the dashboard must fail closed for live results.
 
 ## 2. Challenge requirements that drive the design
 
