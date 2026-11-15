@@ -52,6 +52,8 @@ def portfolio_snapshot(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[st
     balance = float(persona["starting_balance_cad"]) * (float(account["share"]) if account else 1.0)
     cash = balance * float(account["cash_share"]) if account else float(persona["starting_cash_cad"])
     allocations = account["allocations"] if account else persona["default_allocations"]
+    investable = balance - cash  # the balance already includes the cash, so holdings are sized on the rest
+    bought_at_reference = 0.0  # what the shares cost at the last pre-event close
     moves = sell_guard.price_volume_signals(data["current"], data["change"], as_of) if as_of else {}
     reference: Dict[str, float] = {}
     for row in data["current"]:
@@ -65,7 +67,8 @@ def portfolio_snapshot(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[st
     for item in holdings(p["strategy_holdings"], allocations):
         ticker, weight = item["ticker"], item["weight"]
         price = latest[ticker]
-        shares = round(balance * weight / reference[ticker], 2)
+        shares = round(investable * weight / reference[ticker], 2)
+        bought_at_reference += shares * reference[ticker]
         rows.append(
             {
                 "ticker": ticker,
@@ -77,9 +80,13 @@ def portfolio_snapshot(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[st
             }
         )
     invested = round(sum(r["value_cad"] for r in rows), 2)
+    # Whole-cent share rounding leaves a few dollars unspent: that is cash. So before the refresh the
+    # account is worth exactly its balance, and after it only the share prices move the total.
+    cash = round(balance - bought_at_reference, 2)
     return {
         "persona_id": p["persona_id"],
         "account_type": p.get("account_type"),
+        "starting_balance_cad": round(balance, 2),
         "refreshed": as_of is not None,
         "invested_cad": invested,
         "cash_cad": cash,
@@ -183,7 +190,10 @@ def market_agent(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[str, Any
 
 def classifier_agent(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[str, Any]:
     """Classifier agent: label the move and score it, from the Market agent's output."""
-    result = sell_guard.classify_move(p["action"], p["market"], data["news"], peers=data["peers"])
+    result = sell_guard.classify_move(
+        p["action"], p["market"], data["news"], peers=data["peers"], risk_band=p.get("risk_band"),
+        growth_style=bool(p.get("growth_style")),
+    )
     headlines = sentiment_summary(data, {"ticker": p["market"]["ticker"], "live": True})["headlines"][-3:][::-1]
     return {"trade_check": result, "headlines": headlines}
 
@@ -192,3 +202,33 @@ def investor_position(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[str
     """What the investor holds in the ticker and a sample trade."""
     book = portfolio_snapshot(data, p)
     return {"position": position(book, data, p["ticker"], p["action"], bool(p.get("live")))}
+
+
+def account_values(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[str, Any]:
+    """The current value of each of an investor's accounts, in one call.
+
+    This is THE number every screen shows for an account (the account list, the Accounts total and
+    the Holdings total), so they cannot disagree: it is the same snapshot the Holdings panel uses.
+    Before the market refresh a value equals the account's starting balance; after it, it moves
+    with the prices.
+    """
+    values: Dict[str, Any] = {}
+    for item in p["accounts"]:
+        book = portfolio_snapshot(
+            data,
+            {
+                "persona_id": p["persona_id"],
+                "persona": p["persona"],
+                "strategy_holdings": p["strategy_holdings"],
+                "live": p.get("live"),
+                "account_type": item["account_type"],
+                "account": item["account"],
+            },
+        )
+        values[item["account_type"]] = {
+            "value_cad": book["total_value_cad"],
+            "invested_cad": book["invested_cad"],
+            "cash_cad": book["cash_cad"],
+            "starting_balance_cad": book["starting_balance_cad"],
+        }
+    return {"values": values}

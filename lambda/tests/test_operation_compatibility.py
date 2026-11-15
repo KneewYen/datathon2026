@@ -12,8 +12,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda" / "financial_tools"))
 
 import handler as lambda_handler  # noqa: E402
+import backtest  # noqa: E402
 import market_store  # noqa: E402
+import market_tools  # noqa: E402
 import ops  # noqa: E402
+import sell_guard  # noqa: E402
 
 
 MARKET_DATA = {
@@ -116,6 +119,7 @@ class OperationCompatibilityTests(unittest.TestCase):
             "market_agent",
             "classifier_agent",
             "investor_position",
+            "account_values",
         })
         self.assertEqual(status["new_price_rows"], 2)
         self.assertEqual(sentiment["ticker"], "NVDA")
@@ -167,6 +171,136 @@ class OperationCompatibilityTests(unittest.TestCase):
         self.assertTrue(classified["trade_check"]["evidence"])
         self.assertTrue(position["position"]["holds"])
         self.assertEqual(position["position"]["ticker"], "NVDA")
+
+    def test_account_values_preserves_cash_aware_deployed_contract(self) -> None:
+        stores = SimpleNamespace()
+        event = {
+            "operation": "account_values",
+            "persona_id": "amira",
+            "persona": {
+                "starting_balance_cad": 100_000,
+                "starting_cash_cad": 10_000,
+                "default_allocations": {"growth": 1.0},
+            },
+            "strategy_holdings": {"growth": {"NVDA": 1.0}},
+            "live": False,
+            "accounts": [
+                {
+                    "account_type": "TFSA",
+                    "account": {
+                        "share": 0.5,
+                        "cash_share": 0.2,
+                        "allocations": {"growth": 1.0},
+                    },
+                }
+            ],
+        }
+
+        with patch.object(market_store, "load_market", return_value=MARKET_DATA):
+            result = ops.run(event, stores)
+
+        tfsa = result["values"]["TFSA"]
+        self.assertEqual(result["operation"], "account_values")
+        self.assertEqual(tfsa["starting_balance_cad"], 50_000)
+        self.assertEqual(tfsa["invested_cad"], 40_000)
+        self.assertEqual(tfsa["cash_cad"], 10_000)
+        self.assertEqual(tfsa["value_cad"], 50_000)
+        self.assertEqual(tfsa["invested_cad"] + tfsa["cash_cad"], tfsa["value_cad"])
+
+    def test_portfolio_snapshot_does_not_double_count_cash(self) -> None:
+        snapshot = market_tools.portfolio_snapshot(
+            MARKET_DATA,
+            {
+                "persona_id": "amira",
+                "persona": {
+                    "starting_balance_cad": 100_000,
+                    "starting_cash_cad": 10_000,
+                    "default_allocations": {"growth": 1.0},
+                },
+                "strategy_holdings": {"growth": {"NVDA": 1.0}},
+                "account_type": "TFSA",
+                "account": {
+                    "share": 0.5,
+                    "cash_share": 0.2,
+                    "allocations": {"growth": 1.0},
+                },
+                "live": False,
+            },
+        )
+
+        self.assertEqual(snapshot["starting_balance_cad"], 50_000)
+        self.assertEqual(snapshot["invested_cad"], 40_000)
+        self.assertEqual(snapshot["cash_cad"], 10_000)
+        self.assertEqual(snapshot["total_value_cad"], 50_000)
+        self.assertNotEqual(snapshot["total_value_cad"], 60_000)
+
+    def test_classifier_forwards_risk_band_and_growth_style(self) -> None:
+        market = sell_guard.market_change(
+            "NVDA",
+            MARKET_DATA["current"],
+            MARKET_DATA["change"],
+            "2026-01-02",
+        )
+        expected = {"status": "ok", "verdict": "no_signal", "evidence": []}
+        with patch.object(
+            market_tools.sell_guard,
+            "classify_move",
+            return_value=expected,
+        ) as classify:
+            result = market_tools.classifier_agent(
+                MARKET_DATA,
+                {
+                    "action": "sell",
+                    "market": market,
+                    "risk_band": "low",
+                    "growth_style": True,
+                },
+            )
+
+        self.assertIs(result["trade_check"], expected)
+        self.assertEqual(classify.call_args.kwargs["risk_band"], "low")
+        self.assertIs(classify.call_args.kwargs["growth_style"], True)
+
+    def test_sell_guard_preserves_profile_thresholds_and_adjustments(self) -> None:
+        market = sell_guard.market_change(
+            "NVDA",
+            MARKET_DATA["current"],
+            MARKET_DATA["change"],
+            "2026-01-02",
+        )
+        result = sell_guard.classify_move(
+            "sell",
+            market,
+            MARKET_DATA["news"],
+            peers=MARKET_DATA["peers"],
+            risk_band="low",
+            growth_style=True,
+        )
+
+        self.assertEqual(result["risk_band"], "low")
+        self.assertEqual(result["thresholds"], sell_guard.RISK_BAND_THRESHOLDS["low"])
+        self.assertEqual(result["profile_adjustment"]["net_bias"], 0.4)
+        self.assertEqual(result["profile_adjustment"]["style_bias"], 0.3)
+        self.assertIs(result["profile_adjustment"]["growth_style"], True)
+
+    def test_backtest_module_preserves_supported_result_contract(self) -> None:
+        change = [
+            *MARKET_DATA["change"],
+            {"date": "2026-01-03", "ticker": "NVDA", "close": "94", "volume": "250"},
+            {"date": "2026-01-03", "ticker": "SPY", "close": "97", "volume": "220"},
+        ]
+
+        result = backtest.backtest(
+            MARKET_DATA["current"],
+            change,
+            MARKET_DATA["news"],
+            peers=MARKET_DATA["peers"],
+        )
+
+        self.assertEqual(result["last_day"], "2026-01-03")
+        self.assertGreater(result["evaluations"], 0)
+        self.assertEqual(result["evaluations"], len(result["rows"]))
+        self.assertEqual(result["scored"] + result["unscored"], result["evaluations"])
 
     def test_headline_scoring_keeps_bounded_folders_and_writes(self) -> None:
         store = MemoryStore()

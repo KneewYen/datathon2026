@@ -18,7 +18,7 @@ except ImportError:  # Lambda CodeUri places modules at the runtime root.
 
 MARKET_OPERATIONS = (
     "market_status", "portfolio_snapshot", "trade_check", "sentiment_summary", "score_headlines",
-    "market_agent", "classifier_agent", "investor_position",
+    "market_agent", "classifier_agent", "investor_position", "account_values",
 )
 
 
@@ -58,6 +58,7 @@ def run(
             "market_agent": market_tools.market_agent,
             "classifier_agent": market_tools.classifier_agent,
             "investor_position": market_tools.investor_position,
+            "account_values": market_tools.account_values,
         }
         result = handlers[operation](data, event)
         result["data_sources"] = data["sources"]
