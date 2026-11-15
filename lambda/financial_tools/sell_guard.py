@@ -23,7 +23,12 @@ from __future__ import annotations
 
 import statistics
 from datetime import date
-from typing import Any, Dict, Iterable, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+
+try:  # packaged as a module (Lambda) or imported from the repo via sys.path
+    from . import sentiment_tools
+except ImportError:  # pragma: no cover
+    import sentiment_tools
 
 FORMULA_VERSION = "trade-guard-v3"
 
@@ -236,8 +241,15 @@ def evaluate_trade(
     change_prices: Sequence[Mapping[str, Any]],
     news: Sequence[Mapping[str, Any]],
     as_of: str | date,
+    peers: Optional[Mapping[str, Sequence[str]]] = None,
+    half_life_days: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Verdict and evidence for a buy or sell of ``ticker`` on ``as_of``."""
+    """Verdict and evidence for a buy or sell of ``ticker`` on ``as_of``.
+
+    ``half_life_days`` (default off) makes older headlines count less in the
+    sentiment that feeds the scores. ``peers`` (ticker -> related tickers) adds the
+    cross-ticker sentiment as evidence; it never changes the verdict.
+    """
     if action not in ("buy", "sell"):
         raise ValueError("action must be buy or sell")
     signals = price_volume_signals(current_prices, change_prices, as_of)
@@ -248,7 +260,18 @@ def evaluate_trade(
     story = news_signals(news, ticker, since, as_of)
     market_breadth = breadth(signals)
     company_share = float(story["company_news_share"] or 0.0)
-    sentiment = story["mean_sentiment"]
+    window_rows = [
+        n for n in news if n["ticker"] == ticker and _day(since) <= _day(n["date"]) <= _day(as_of)
+    ]
+    plain_sentiment = story["mean_sentiment"]
+    decayed = sentiment_tools.weighted_sentiment(window_rows, as_of, half_life_days or sentiment_tools.DEFAULT_HALF_LIFE_DAYS)
+    sentiment = decayed if half_life_days is not None else plain_sentiment
+    categories = sentiment_tools.category_breakdown(window_rows)
+    peer = (
+        sentiment_tools.peer_sentiment(news, ticker, peers, since, as_of, half_life_days)
+        if peers is not None
+        else {"peer_sentiment": None, "peers_with_news": []}
+    )
     scores = score_signals(
         own["rise_pct"],
         own["volume_ratio"],
@@ -267,6 +290,8 @@ def evaluate_trade(
         _evidence(ticker, "breadth", "Tracked tickers also down sharply", market_breadth * 100, "percent", "prices"),
         _evidence(ticker, "company_news", "Headlines about the company itself", company_share * 100, "percent", "news"),
         _evidence(ticker, "sentiment", "Mean headline sentiment", sentiment, "score", "news"),
+        _evidence(ticker, "decayed_sentiment", "Recency-weighted sentiment", decayed, "score", "news"),
+        _evidence(ticker, "peer_sentiment", "Related tickers' sentiment", peer["peer_sentiment"], "score", "news"),
         _evidence(ticker, "fundamental", "Company-driven score", scores["fundamental"] * 100, "points", "model"),
         _evidence(ticker, "emotion", "Market-driven score", scores["emotion"] * 100, "points", "model"),
         _evidence(ticker, "hype", "Hype score", scores["hype"] * 100, "points", "model"),
@@ -284,6 +309,8 @@ def evaluate_trade(
         if sentiment is None
         else "upbeat" if sentiment >= 0.3 else "negative" if sentiment <= -0.3 else "neutral",
         "evidence": evidence,
+        "headline_categories": categories,
+        "peers_with_news": peer["peers_with_news"],
         "limitations": [
             "Verdicts describe how the market data looks; they are not advice or a forecast.",
             "Sentiment is missing until headlines are scored."

@@ -5,6 +5,7 @@ import type { ChatMessage } from "@/components/dashboard/Message";
 import { translate } from "@/i18n";
 import { api, type ChatResponse } from "@/lib/api";
 import { useAccounts } from "./accounts";
+import { usePersona } from "./persona";
 
 type ChatContext = {
   isOpen: boolean;
@@ -26,6 +27,7 @@ const Context = createContext<ChatContext | null>(null);
 /** Chat state lives above the pages so the conversation survives switching tabs. */
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { refresh } = useAccounts();
+  const { personaId } = usePersona();
   const params = useSearchParams();
   const [isOpen, setIsOpen] = useState(() => params.get("chat") === "1"); // /dashboard/...?chat=1 opens the drawer
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -64,9 +66,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
       setInput("");
-      void run(() => api.chat(trimmed), trimmed);
+      void run(() => api.chat(trimmed, personaId), trimmed);
     },
-    [busy, run]
+    [busy, personaId, run]
   );
 
   const value = useMemo<ChatContext>(

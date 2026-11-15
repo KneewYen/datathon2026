@@ -29,6 +29,32 @@ export type ChatResponse = {
   warnings: string[];
   proposal: Proposal | null;
   suggestions: string[];
+  trade_check?: TradeCheck | null;
+  position?: TradePosition | null;
+  headlines?: Headline[] | null;
+  persona_fit?: PersonaFit | null;
+};
+
+export type PersonaFit = {
+  persona: { id: string; name: string; risk: string; horizon_years: string; goal: string };
+  stance: "fits" | "wait" | "careful";
+  headline: string;
+  why: string[];
+};
+
+export type Headline = { date: string; headline: string; sentiment: string | number | null; category: string };
+
+export type TradePosition = {
+  ticker: string;
+  action: TradeAction;
+  holds: boolean;
+  shares_held: number;
+  price: number;
+  sample_qty: number;
+  sample_amount_cad: number;
+  portfolio_pct: number;
+  cash_after_cad: number;
+  affordable: boolean;
 };
 
 export type Account = {
@@ -251,7 +277,8 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang() }),
+  chat: (message: string, holdingsPersona?: PersonaId) =>
+    post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang(), holdings_persona: holdingsPersona }),
   approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk, lang: getLang() }),
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject?lang=${getLang()}`, {}),
   accounts: (persona?: PersonaId) =>

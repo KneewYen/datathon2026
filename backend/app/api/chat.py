@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     user_id: str = "demo"
     message: str
     lang: str = "en"
+    holdings_persona: Optional[str] = None  # the investor on screen, so trade answers can show their position
 
 
 class ApproveRequest(BaseModel):
@@ -53,7 +54,7 @@ def chat(request: ChatRequest) -> Any:
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return orchestrator.chat(request.user_id, request.message, request.lang)
+    return orchestrator.chat(request.user_id, request.message, request.lang, request.holdings_persona)
 
 
 @router.post("/actions/{action_id}/approve")
