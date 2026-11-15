@@ -59,18 +59,36 @@ def run_agent(name: str, system: str, tool_fns: List[Callable[[], Dict[str, Any]
     return captured[key]
 
 
+def owned(action: str, payload: Dict[str, Any]) -> Any:
+    """Run an action this agent owns with the application's own handler (deterministic, no model loop)."""
+    from app import agent_app
+
+    return agent_app.handle(action, payload)
+
+
 def envelope(fn: Callable[[], Any]) -> Dict[str, Any]:
     """Wrap an agent's work as ``{"ok": true, "result": ...}`` or ``{"ok": false, "status", "detail"}``."""
     try:
         return {"ok": True, "result": fn()}
     except AgentFailure as exc:
         return {"ok": False, "status": exc.status, "detail": exc.detail}
-    except LookupError as exc:
-        return {"ok": False, "status": 409, "detail": str(exc)}
-    except ValueError as exc:
-        return {"ok": False, "status": 422, "detail": str(exc)}
-    except Exception as exc:  # report, keep the runtime alive
-        return {"ok": False, "status": 500, "detail": f"agent error: {type(exc).__name__}"}
+    except Exception as exc:
+        if isinstance(getattr(exc, "status", None), int) and hasattr(exc, "detail"):  # the application's AgentError
+            return {"ok": False, "status": exc.status, "detail": str(exc.detail)}
+        return _failure(exc)
+
+
+def _failure(exc: Exception) -> Dict[str, Any]:
+    try:
+        raise exc
+    except AgentFailure as err:
+        return {"ok": False, "status": err.status, "detail": err.detail}
+    except LookupError as err:
+        return {"ok": False, "status": 409, "detail": str(err)}
+    except ValueError as err:
+        return {"ok": False, "status": 422, "detail": str(err)}
+    except Exception as err:  # report, keep the runtime alive
+        return {"ok": False, "status": 500, "detail": f"agent error: {type(err).__name__}"}
 
 
 def invoke_runtime(arn: str, payload: Dict[str, Any], session: str) -> Any:
