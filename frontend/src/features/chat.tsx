@@ -5,6 +5,7 @@ import type { ChatMessage } from "@/components/dashboard/Message";
 import { translate } from "@/i18n";
 import { api, type ChatResponse } from "@/lib/api";
 import { useAccounts } from "./accounts";
+import { useMarket } from "./market";
 import { usePersona } from "./persona";
 
 type ChatContext = {
@@ -28,6 +29,7 @@ const Context = createContext<ChatContext | null>(null);
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { refresh } = useAccounts();
   const { personaId } = usePersona();
+  const { live } = useMarket();
   const params = useSearchParams();
   const [isOpen, setIsOpen] = useState(() => params.get("chat") === "1"); // /dashboard/...?chat=1 opens the drawer
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -66,9 +68,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
       setInput("");
-      void run(() => api.chat(trimmed, personaId), trimmed);
+      void run(() => api.chat(trimmed, personaId, live), trimmed);
     },
-    [busy, personaId, run]
+    [busy, personaId, live, run]
   );
 
   const value = useMemo<ChatContext>(

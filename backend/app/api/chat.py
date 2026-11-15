@@ -5,14 +5,20 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.agents.orchestrator import GlobalOrchestrator
+from app.agent_app import AgentError
 from app.domain.models import AnalysisRequest, AnalysisResponse
-from app.i18n import normalize
-from app.services.errors import ExternalServiceError, ServiceConfigurationError
+from app.services import agent_runtime
 
 
 router = APIRouter()
-orchestrator = GlobalOrchestrator()
+
+
+def _agents(action: str, payload: Dict[str, Any], user_id: str = "demo") -> Any:
+    """Run an action in the agent runtime and turn its failures into HTTP errors."""
+    try:
+        return agent_runtime.call(action, payload, user_id)
+    except AgentError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
 
 class ChatRequest(BaseModel):
@@ -21,6 +27,7 @@ class ChatRequest(BaseModel):
     message: str
     lang: str = "en"
     holdings_persona: Optional[str] = None  # the investor on screen, so trade answers can show their position
+    live: bool = False  # the caller's "market refreshed" choice; the server keeps no market state
 
 
 class ApproveRequest(BaseModel):
@@ -28,61 +35,35 @@ class ApproveRequest(BaseModel):
     lang: str = "en"
 
 
-def _run(request: AnalysisRequest) -> AnalysisResponse:
-    try:
-        return orchestrator.run(request)
-    except ServiceConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-
 @router.post("/analysis", response_model=AnalysisResponse)
-def analysis(request: AnalysisRequest) -> AnalysisResponse:
-    return _run(request)
+def analysis(request: AnalysisRequest) -> Any:
+    return _agents("analysis", request.model_dump(mode="json"))
 
 
 @router.post("/chat")
 def chat(request: ChatRequest) -> Any:
-    """Run the focused analysis or the conversational account flow."""
-    if request.persona_id:
-        try:
-            return _run(
-                AnalysisRequest(
-                    persona_id=request.persona_id, question=request.message, language=normalize(request.lang)
-                )
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return orchestrator.chat(request.user_id, request.message, request.lang, request.holdings_persona)
+    """Run the focused analysis or the conversational account flow, in the agent runtime."""
+    return _agents("chat", request.model_dump(), request.user_id)
 
 
 @router.post("/actions/{action_id}/approve")
 def approve(action_id: str, request: ApproveRequest) -> Dict[str, Any]:
-    return orchestrator.approve(action_id, request.risk, request.lang)
+    return _agents("approve", {"action_id": action_id, "risk": request.risk, "lang": request.lang})
 
 
 @router.post("/actions/{action_id}/reject")
 def reject(action_id: str, lang: str = "en") -> Dict[str, Any]:
-    return orchestrator.reject(action_id, lang)
+    return _agents("reject", {"action_id": action_id, "lang": lang})
 
 
 @router.get("/accounts")
-def accounts(user_id: str = "demo", persona_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    from app import store
-
-    result = store.accounts(user_id)
-    return [account for account in result if persona_id is None or account.get("persona_id") == persona_id]
+def accounts(user_id: str = "demo", persona_id: Optional[str] = None, live: bool = False) -> List[Dict[str, Any]]:
+    return _agents("accounts", {"user_id": user_id, "persona_id": persona_id, "live": live}, user_id)
 
 
 @router.delete("/accounts/{account_id}")
 def delete_account(account_id: str, user_id: str = "demo") -> Dict[str, bool]:
-    from app import store
-
-    if not store.delete_account(user_id, account_id):
-        raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
-    return {"deleted": True}
-
+    return _agents("delete_account", {"user_id": user_id, "account_id": account_id}, user_id)
 
 
 @router.get("/meta")

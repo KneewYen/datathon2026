@@ -1,14 +1,11 @@
 """Macro Signal Agent: rates, yield curve, unemployment from the starter dataset."""
 import csv
+import io
 import math
-import os
-from pathlib import Path
 from typing import Any, Dict, List
 
 from app import i18n
-
-DEFAULT_DATA_DIR = Path(__file__).resolve().parents[4] / "hackathon_info" / "alphaforge_starter"
-DATA_DIR = Path(os.getenv("MACRO_DATA_DIR", DEFAULT_DATA_DIR))
+from app.services import reference_data
 REQUIRED_SERIES = {
     "DGS10",
     "DGS2",
@@ -21,18 +18,18 @@ REQUIRED_SERIES = {
 def _series() -> Dict[str, List[tuple]]:
     out: Dict[str, List[tuple]] = {}
     seen = set()
-    with (DATA_DIR / "macro_rates.csv").open(newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            series_id = row.get("series_id", "")
-            date = row.get("date", "")
-            value = float(row.get("value", ""))
-            if not series_id or not date or not math.isfinite(value):
-                raise ValueError("macro dataset contains an invalid observation")
-            key = (series_id, date)
-            if key in seen:
-                raise ValueError(f"macro dataset contains duplicate observation: {series_id} {date}")
-            seen.add(key)
-            out.setdefault(series_id, []).append((date, value))
+    # rows come from S3 when deployed, from the starter folder only for tests
+    for row in csv.DictReader(io.StringIO(reference_data.read_text("macro_rates.csv"))):
+        series_id = row.get("series_id", "")
+        date = row.get("date", "")
+        value = float(row.get("value", ""))
+        if not series_id or not date or not math.isfinite(value):
+            raise ValueError("macro dataset contains an invalid observation")
+        key = (series_id, date)
+        if key in seen:
+            raise ValueError(f"macro dataset contains duplicate observation: {series_id} {date}")
+        seen.add(key)
+        out.setdefault(series_id, []).append((date, value))
     for v in out.values():
         v.sort()
     missing = REQUIRED_SERIES.difference(out)

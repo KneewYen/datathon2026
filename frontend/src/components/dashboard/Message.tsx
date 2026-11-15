@@ -73,14 +73,16 @@ export function Message({
         {d.trade_check && (
           <div className="mt-3 rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
             <TradeCheckBody check={d.trade_check} headlines={d.headlines} />
+            <p className="mt-2 text-[11px] text-slate-500">
+              {d.trade_check.computed_by === "aws-lambda" ? t("chat.computed.aws") : t("chat.computed.local")}
+            </p>
             {d.persona_fit && (
               <div className="mt-4 rounded-md bg-white p-3 ring-1 ring-slate-200">
                 <div className="text-xs font-semibold text-slate-700">{t("fit.title", { name: d.persona_fit.persona.name })}</div>
                 <div className="mt-0.5 text-[11px] text-slate-500">
-                  {t("fit.profile", {
-                    risk: d.persona_fit.persona.risk,
-                    years: d.persona_fit.persona.horizon_years,
-                  })}
+                  {d.persona_fit.persona.horizon_text
+                    ? t("fit.profileText", { risk: d.persona_fit.persona.risk, horizon: d.persona_fit.persona.horizon_text })
+                    : t("fit.profile", { risk: d.persona_fit.persona.risk, years: d.persona_fit.persona.horizon_years })}
                 </div>
                 <div className="mt-2 flex items-start gap-2">
                   <span
@@ -174,6 +176,11 @@ export function Message({
               {d.trace.map((step, i) => (
                 <li key={i}>
                   {i + 1}. <b className="text-slate-700">{agentName(step.agent)}</b>: {plain(step.action)}
+                  {step.runtime && (
+                    <span title="Amazon Bedrock AgentCore runtime that ran this step" className="ml-1.5 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                      AWS · {step.runtime}
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>

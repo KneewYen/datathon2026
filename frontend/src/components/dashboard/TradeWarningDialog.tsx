@@ -48,14 +48,30 @@ export function TradeWarningDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id="warn-title" className={`text-lg font-semibold ${warning ? "text-amber-800" : "text-slate-900"}`}>
-          {warning
-            ? t(`warn.title.${check.verdict}` as MessageKey)
-            : t(check.action === "buy" ? "warn.buyTitle" : "warn.sellTitle", { ticker: check.ticker })}
+          {check.explanation?.popup_title ??
+            (warning
+              ? t(`warn.title.${check.verdict}` as MessageKey)
+              : t(check.action === "buy" ? "warn.buyTitle" : "warn.sellTitle", { ticker: check.ticker }))}
         </h2>
         <div className="mt-3">
           <TradeSimple check={check} />
         </div>
         <p className="mt-3 text-xs text-slate-500">{t("warn.footer")}</p>
+        {check.trace && check.trace.length > 0 && (
+          <details className="mt-3 text-xs text-slate-500" open>
+            <summary className="cursor-pointer text-brand-600 hover:text-brand-700">AWS agents that ran</summary>
+            <ol className="mt-2 space-y-1.5">
+              {check.trace.map((step, i) => (
+                <li key={i}>
+                  {i + 1}. <b className="text-slate-700">{step.agent}</b>: {step.action}
+                  {step.runtime && (
+                    <span className="ml-1.5 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">AWS · {step.runtime}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
         <button type="button" onClick={onDetails} className="mt-3 text-sm text-link underline-offset-2 hover:underline">
           {t("warn.details")}
         </button>

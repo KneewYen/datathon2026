@@ -21,7 +21,10 @@ export function TradeSimple({ check }: { check: TradeCheck }) {
   ];
   return (
     <>
-      <p className="text-sm text-slate-700">{t(`plain.${check.verdict}` as MessageKey)}</p>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("popup.feeling")}</div>
+      <p className="mt-1 text-sm text-slate-700">
+        {check.explanation?.popup_text ?? t(`plain.${check.verdict}` as MessageKey)}
+      </p>
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
         {rows.map(([label, value]) => (
           <li key={label}>
@@ -29,6 +32,12 @@ export function TradeSimple({ check }: { check: TradeCheck }) {
           </li>
         ))}
       </ul>
+      {check.persona_fit && (
+        <p className="mt-3 text-sm text-slate-700">
+          <span className="font-semibold text-slate-900">{t("popup.asPersona", { name: check.persona_fit.persona.name })}</span>{" "}
+          {check.persona_fit.headline}
+        </p>
+      )}
       <FinalVerdict check={check} />
     </>
   );

@@ -20,22 +20,32 @@ Parameters:
   DatasetId:
     Type: String
     Default: alphaforge-starter-v1
+  MarketPrefix:
+    Type: String
+    Default: simulated/v1
+    Description: S3 prefix holding the simulated market prices and headlines
+  MarketDatasetId:
+    Type: String
+    Default: simulated-market-v1
   BedrockModelId:
     Type: String
     Default: us.amazon.nova-lite-v1:0
     AllowedValues: [us.amazon.nova-lite-v1:0]
-    Description: Bedrock model or inference profile ID used by the FastAPI backend
+    Description: Bedrock model or inference profile ID used by the financial-tools Lambda
 
 Globals:
   Function:
     Runtime: python3.12
     Architectures: [arm64]
-    Timeout: 30
+    Timeout: 120
     MemorySize: 512
     Environment:
       Variables:
         DATA_PREFIX: !Ref DataPrefix
         DATASET_ID: !Ref DatasetId
+        MARKET_PREFIX: !Ref MarketPrefix
+        MARKET_DATASET_ID: !Ref MarketDatasetId
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
     Tags:
       Project: PortfolioGuardAI
       Environment: !Ref Environment
@@ -76,7 +86,7 @@ Resources:
   FinancialToolsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Least-privilege execution role for PortfolioGuard financial tools
+      Description: Least-privilege execution role for PortfolioGuard financial tools and headline scoring
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -85,7 +95,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ReadVersionedPortfolioGuardDatasetAndWriteLogs
+        - PolicyName: ReadVersionedPortfolioGuardDataScoreHeadlinesAndWriteLogs
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -102,6 +112,37 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub >-
                   arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-financial-tools:*
+              - Sid: ReadSimulatedMarketData
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${DataBucket.Arn}/${MarketPrefix}/*
+              - Sid: WriteScoredHeadlinesOnly
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/current/news_scored.csv
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/marketchange/news_scored.csv
+              - Sid: InvokeNovaLiteInferenceProfile
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: !Sub >-
+                  arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeNovaLiteDestinationModels
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub >-
+                      arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
       Tags:
         - Key: Project
           Value: PortfolioGuardAI
@@ -116,8 +157,8 @@ Resources:
       FunctionName: !Sub portfolioguard-${Environment}-financial-tools
       CodeUri: ../lambda/financial_tools/
       Handler: handler.handler
-      Description: Deterministic portfolio calculations using versioned S3 market data
-      ReservedConcurrentExecutions: 2
+      Description: Portfolio and trade calculations plus headline classification, using versioned S3 market data
+      ReservedConcurrentExecutions: 5
       Role: !GetAtt FinancialToolsExecutionRole.Arn
       Environment:
         Variables:

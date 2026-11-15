@@ -67,7 +67,7 @@ def test_analysis_maps_live_aws_failure_to_bad_gateway(monkeypatch) -> None:
     def fail(_request):
         raise ExternalServiceError("financial Lambda failed: unavailable")
 
-    monkeypatch.setattr("app.api.chat.orchestrator.run", fail)
+    monkeypatch.setattr("app.agent_app.orchestrator.run", fail)
 
     response = TestClient(app).post("/api/analysis", json={})
 

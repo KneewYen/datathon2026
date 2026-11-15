@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { useLanguage } from "@/i18n";
 import { accountName, strategyLabel } from "@/i18n/labels";
+import { accountValue, totalAccountValue } from "@/lib/accountValue";
 import type { Account, AnalysisResponse } from "@/lib/api";
-import { PERSONAS, formatCad, type PersonaId } from "@/lib/personas";
+import { formatCad, type PersonaId } from "@/lib/personas";
 import { RISK_LEVEL } from "@/lib/profiles";
 import { RiskMeter } from "./RiskMeter";
 
@@ -103,7 +104,6 @@ function SwipeRow({
 }
 
 export function AccountsPanel({
-  personaId,
   analysis,
   accounts,
   selectedId,
@@ -122,9 +122,8 @@ export function AccountsPanel({
   canCreate?: boolean;
 }) {
   const { t, tOr } = useLanguage();
-  const persona = PERSONAS.find((p) => p.id === personaId)!;
-  const balance = persona.startingBalance;
-  const invested = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+  // The total is the sum of the accounts' values, the same numbers listed below and shown in Holdings.
+  const total = totalAccountValue(accounts);
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex items-start justify-between">
@@ -151,7 +150,7 @@ export function AccountsPanel({
           {t("accounts.total")}
         </div>
         <div className="text-2xl font-semibold">
-          {formatCad(balance + invested)}
+          {formatCad(total)}
         </div>
       </div>
 
@@ -166,7 +165,7 @@ export function AccountsPanel({
                 <li key={name} className="flex justify-between text-slate-600">
                   <span>{tOr(`strategy.${name}`, name)}</span>
                   <span className="font-medium text-slate-800">
-                    {formatCad(balance * weight)}
+                    {formatCad(total * weight)}
                   </span>
                 </li>
               ),
@@ -206,7 +205,7 @@ export function AccountsPanel({
                 </span>
                 <span className="w-28 shrink-0">
                   <span className="block text-right text-sm font-semibold">
-                    {formatCad(a.balance ?? 0)}
+                    {formatCad(accountValue(a))}
                   </span>
                   <span className="mb-1 block text-right text-xs text-slate-500">
                     {tOr(`risk.${a.risk}`, a.risk_label)}

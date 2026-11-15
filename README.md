@@ -105,6 +105,7 @@ Backend configuration is documented in `backend/.env.example`:
 | `LAMBDA_FUNCTION_NAME` | `portfolioguard-workshop-financial-tools` | Deterministic calculation function |
 | `S3_BUCKET` | CloudFormation `DataBucketName` output | Versioned dataset bucket used by deployment helpers |
 | `DATA_PREFIX` | `starter/v1` | Approved dataset prefix reported by the readiness endpoint |
+| `ENGINE` | unset (`lambda`) | `lambda` runs every calculation in the Lambda against S3; `local` is for tests and offline work only |
 | `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call FastAPI |
 
 The frontend uses one API base URL, `NEXT_PUBLIC_API_URL`, defaulting to
