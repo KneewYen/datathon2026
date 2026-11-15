@@ -27,7 +27,7 @@
   /* Neutrals and navy, taken from the National Bank site palette */
   --color-navy: #00314d;
   --color-link: #1572c5;
-  --color-slate-50: #f1f1f1;
+  --color-slate-50: #e9f2fa;
   --color-slate-100: #eef6fb;
   --color-slate-200: #e1e1e1;
   --color-slate-300: #d2d2d2;
@@ -38,7 +38,7 @@
 }
 
 body {
-  background: #f1f1f1;
+  background: #e9f2fa;
   color: var(--foreground);
   font-family: var(--font-brand), Arial, sans-serif;
   min-height: 100vh;
@@ -48,7 +48,7 @@ body {
 :root {
   --ink: #00314d;
   --muted: #565656;
-  --paper: #f1f1f1;
+  --paper: #e9f2fa;
   --cream: #ffffff;
   --line: #e1e1e1;
   --coral: #e41c23;

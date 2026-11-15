@@ -13,9 +13,12 @@ const STORAGE_KEY = "portfolioguard.lang";
 /**
  * The current language lives in this module so plain helpers (number formatting, API errors) and
  * React components agree on it. Components subscribe through `useLanguage()` and re-render on change.
+ *
+ * The saved language is applied only after the page has hydrated (see `bootLanguage`). Until then
+ * everything renders in English, exactly like the server did, so React never sees a mismatch.
  */
 let current: Lang = "en";
-let initialised = false;
+let booted = false;
 const listeners = new Set<() => void>();
 
 function detect(): Lang {
@@ -28,19 +31,27 @@ function detect(): Lang {
   return window.navigator.language?.toLowerCase().startsWith("fr") ? "fr" : "en";
 }
 
-function ensureInitialised() {
-  if (initialised || typeof window === "undefined") return;
-  initialised = true;
-  current = detect();
+function notify() {
+  listeners.forEach((listener) => listener());
+}
+
+/** Apply the saved (or browser) language. Call once, from an effect, after hydration. */
+export function bootLanguage() {
+  if (booted || typeof window === "undefined") return;
+  booted = true;
+  const detected = detect();
+  if (detected === current) return;
+  current = detected;
+  document.documentElement.lang = detected;
+  notify();
 }
 
 export function getLang(): Lang {
-  ensureInitialised();
   return current;
 }
 
 export function setLang(lang: Lang) {
-  ensureInitialised();
+  booted = true; // an explicit choice always wins over the saved one
   if (lang === current) return;
   current = lang;
   try {
@@ -49,7 +60,7 @@ export function setLang(lang: Lang) {
     /* the choice just won't survive a reload */
   }
   document.documentElement.lang = lang;
-  listeners.forEach((listener) => listener());
+  notify();
 }
 
 function subscribe(listener: () => void) {
