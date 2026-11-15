@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 
-from app.domain.presets import PERSONAS, STRATEGY_HOLDINGS
+from app.domain.presets import ACCOUNT_PRESETS, PERSONAS, STRATEGY_HOLDINGS
 
 ROOT = Path(__file__).resolve().parents[3]
 SIM = ROOT / "data" / "simulated"
@@ -85,21 +85,24 @@ def evaluate(action: str, ticker: str) -> Dict[str, Any]:
     return result
 
 
-def holdings(persona_id: str) -> List[Dict[str, Any]]:
+def holdings(persona_id: str, allocations: Dict[str, float] | None = None) -> List[Dict[str, Any]]:
     """Each ticker's weight in the persona's default allocation."""
     persona = PERSONAS[persona_id]
     weights: Dict[str, float] = {}
-    for strategy, share in persona["default_allocations"].items():
+    for strategy, share in (allocations or persona["default_allocations"]).items():
         for ticker, weight in STRATEGY_HOLDINGS.get(strategy, {}).items():
             weights[ticker] = weights.get(ticker, 0.0) + share * weight
     return [{"ticker": t, "weight": w} for t, w in sorted(weights.items(), key=lambda kv: -kv[1])]
 
 
-def portfolio(persona_id: str) -> Dict[str, Any]:
+def portfolio(persona_id: str, account_type: str | None = None) -> Dict[str, Any]:
     """Fictional positions: shares are sized at the last pre-event close, then repriced."""
     as_of = _latest()
     persona = PERSONAS[persona_id]
-    balance = float(persona["starting_balance_cad"])
+    account = ACCOUNT_PRESETS.get(account_type or "")
+    balance = float(persona["starting_balance_cad"]) if account is None else float(persona["starting_balance_cad"]) * float(account["share"])
+    cash = float(persona["starting_cash_cad"]) if account is None else balance * float(account["cash_share"])
+    allocations = None if account is None else account["allocations"]
     data = _data()
     moves = sell_guard.price_volume_signals(data["current"], data["change"], as_of) if as_of else {}
     reference: Dict[str, float] = {}
@@ -112,7 +115,7 @@ def portfolio(persona_id: str) -> Dict[str, Any]:
             if row["date"] <= as_of:
                 latest[row["ticker"]] = float(row["close"])
     rows = []
-    for item in holdings(persona_id):
+    for item in holdings(persona_id, allocations):
         ticker, weight = item["ticker"], item["weight"]
         price = latest[ticker]
         shares = round(balance * weight / reference[ticker], 2)
@@ -127,9 +130,9 @@ def portfolio(persona_id: str) -> Dict[str, Any]:
             }
         )
     invested = round(sum(r["value_cad"] for r in rows), 2)
-    cash = float(persona["starting_cash_cad"])
     return {
         "persona_id": persona_id,
+        "account_type": account_type,
         "refreshed": as_of is not None,
         "invested_cad": invested,
         "cash_cad": cash,

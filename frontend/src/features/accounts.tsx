@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { translate } from "@/i18n";
 import { api, type Account } from "@/lib/api";
+import { usePersona } from "./persona";
 
 type AccountsContext = {
   accounts: Account[];
@@ -15,25 +16,26 @@ type AccountsContext = {
 const Context = createContext<AccountsContext | null>(null);
 
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
+  const { personaId } = usePersona();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setAccounts(await api.accounts());
+      setAccounts(await api.accounts(personaId));
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : translate("accounts.err.load"));
     }
-  }, []);
+  }, [personaId]);
 
   useEffect(() => {
     api
-      .accounts()
+      .accounts(personaId)
       .then((list) => setAccounts(list))
       .catch((reason) => setError(reason instanceof Error ? reason.message : translate("accounts.err.load")));
-  }, []);
+  }, [personaId]);
 
   const remove = useCallback(async (id: string) => {
     try {
