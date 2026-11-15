@@ -30,7 +30,7 @@ try:  # packaged as a module (Lambda) or imported from the repo via sys.path
 except ImportError:  # pragma: no cover
     import sentiment_tools
 
-FORMULA_VERSION = "trade-guard-v3"
+FORMULA_VERSION = "trade-guard-v4"
 
 DROP_THRESHOLD_PCT = -3.0  # trough versus the last pre-event close
 VOLUME_SPIKE_RATIO = 1.5  # event volume versus the typical (median) volume
@@ -44,6 +44,21 @@ FULL_RISE_PCT = 6.0  # a rally this large is full price momentum
 NET_DECISION_MARGIN = 0.15  # fundamental minus emotion must beat this to pick a side
 HYPE_THRESHOLD = 0.55  # hype score at or above this means chasing
 TYPICAL_VOLUME_DAYS = 20
+# Position size: selling a big share of the portfolio is a big decision, so a SELL of it must be backed
+# by more evidence before it is called reasoned. From CONCENTRATION_START_PCT of the portfolio the
+# company-driven minus market-driven balance is lowered by 0.10, rising to 0.25 at CONCENTRATION_FULL_PCT.
+CONCENTRATION_START_PCT = 25.0
+CONCENTRATION_FULL_PCT = 50.0
+CONCENTRATION_MIN_BIAS = 0.10
+CONCENTRATION_MAX_BIAS = 0.25
+
+
+def concentration_bias(holding_pct: Optional[float]) -> float:
+    """How far (a positive number) a SELL's net score is lowered because the position is a big part of the portfolio."""
+    if not holding_pct or holding_pct < CONCENTRATION_START_PCT:
+        return 0.0
+    span = (min(holding_pct, CONCENTRATION_FULL_PCT) - CONCENTRATION_START_PCT) / (CONCENTRATION_FULL_PCT - CONCENTRATION_START_PCT)
+    return round(CONCENTRATION_MIN_BIAS + (CONCENTRATION_MAX_BIAS - CONCENTRATION_MIN_BIAS) * span, 4)
 
 # How big a move must be before it counts, by the investor's risk band. The band already
 # includes the account rule (an RRSP lowers it one step), so persona and account both move
@@ -202,6 +217,7 @@ def decide(
     drop_sigma: Optional[float] = None,
     rise_sigma: Optional[float] = None,
     growth_style: bool = False,
+    holding_pct: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Categorise the action from the scores and report the score that decided it.
 
@@ -229,6 +245,8 @@ def decide(
     known = risk_band in RISK_BAND_THRESHOLDS
     # The profile only softens how a SELL is judged; buys keep the data's own balance.
     bias = (gate["net_bias"] + (gate["style_bias"] if growth_style else 0.0)) if known and action == "sell" else 0.0
+    if action == "sell":
+        bias -= concentration_bias(holding_pct)  # a big position needs more evidence before a sell is "reasoned"
     net = scores["fundamental"] - scores["emotion"] + bias
     heavy = volume_ratio >= gate["volume_ratio"]
     dropped = drop_pct <= gate["drop_pct"] and (drop_sigma is None or drop_sigma <= -gate["sigma"])
@@ -346,6 +364,7 @@ def classify_move(
     half_life_days: Optional[float] = None,
     risk_band: Optional[str] = None,
     growth_style: bool = False,
+    holding_pct: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Classifier agent: label the move market-driven or company-driven and score it.
 
@@ -358,6 +377,8 @@ def classify_move(
     or high, from the Intake agent) sets how big a move has to be before it is flagged and how far a
     market-driven drop is excused for a cautious investor; ``growth_style`` says the ticker is a
     growth or momentum holding, which a low-risk plan does not expect to keep (a sell is then reasoned).
+    ``holding_pct`` is the share of the portfolio the investor holds in this ticker: a SELL of a large position
+    (25% and up) must clear a higher bar before it is called reasoned instead of panic.
     """
     if action not in ("buy", "sell"):
         raise ValueError("action must be buy or sell")
@@ -396,7 +417,7 @@ def classify_move(
     )
     decision = decide(
         action, own["drop_pct"], own["rise_pct"], own["volume_ratio"], scores, risk_band,
-        drop_sigma=own.get("drop_sigma"), rise_sigma=own.get("rise_sigma"), growth_style=growth_style,
+        drop_sigma=own.get("drop_sigma"), rise_sigma=own.get("rise_sigma"), growth_style=growth_style, holding_pct=holding_pct,
     )
     verdict = decision["verdict"]
     moved = max(abs(own["drop_pct"]), abs(own["rise_pct"]))
@@ -416,6 +437,7 @@ def classify_move(
         _evidence(ticker, "market_news_tone", "Market-wide news tone", market_tone, "score", "news"),
         _evidence(ticker, "decayed_sentiment", "Recency-weighted sentiment", decayed, "score", "news"),
         _evidence(ticker, "peer_sentiment", "Related tickers' sentiment", peer["peer_sentiment"], "score", "news"),
+        _evidence(ticker, "position_weight", "Share of the portfolio in this holding", holding_pct, "percent", "portfolio"),
         _evidence(ticker, "fundamental", "Company-driven score", scores["fundamental"] * 100, "points", "model"),
         _evidence(ticker, "emotion", "Market-driven score", scores["emotion"] * 100, "points", "model"),
         _evidence(ticker, "hype", "Hype score", scores["hype"] * 100, "points", "model"),
@@ -446,6 +468,8 @@ def classify_move(
             "risk_band": risk_band if risk_band in RISK_BAND_THRESHOLDS else None,
             "net_bias": gate["net_bias"] if risk_band in RISK_BAND_THRESHOLDS and action == "sell" else 0.0,
             "growth_style": bool(growth_style),
+            "holding_pct": holding_pct,
+            "concentration_bias": concentration_bias(holding_pct) if action == "sell" else 0.0,
             "style_bias": gate["style_bias"] if risk_band in RISK_BAND_THRESHOLDS and growth_style and action == "sell" else 0.0,
         },
         "thresholds": dict(gate),

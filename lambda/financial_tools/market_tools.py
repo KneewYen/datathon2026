@@ -64,7 +64,13 @@ def portfolio_snapshot(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[st
             if row["date"] <= as_of:
                 latest[row["ticker"]] = float(row["close"])
     rows = []
-    for item in holdings(p["strategy_holdings"], allocations):
+    concentrated = persona.get("concentrated_holdings")  # a few big bets instead of the basket mix
+    chosen = (
+        [{"ticker": t, "weight": w} for t, w in sorted(concentrated.items(), key=lambda kv: -kv[1])]
+        if concentrated
+        else holdings(p["strategy_holdings"], allocations)
+    )
+    for item in chosen:
         ticker, weight = item["ticker"], item["weight"]
         price = latest[ticker]
         shares = round(investable * weight / reference[ticker], 2)
@@ -192,7 +198,7 @@ def classifier_agent(data: Mapping[str, Any], p: Mapping[str, Any]) -> Dict[str,
     """Classifier agent: label the move and score it, from the Market agent's output."""
     result = sell_guard.classify_move(
         p["action"], p["market"], data["news"], peers=data["peers"], risk_band=p.get("risk_band"),
-        growth_style=bool(p.get("growth_style")),
+        growth_style=bool(p.get("growth_style")), holding_pct=p.get("holding_pct"),
     )
     headlines = sentiment_summary(data, {"ticker": p["market"]["ticker"], "live": True})["headlines"][-3:][::-1]
     return {"trade_check": result, "headlines": headlines}

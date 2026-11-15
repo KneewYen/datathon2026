@@ -19,6 +19,7 @@ from app.services import sell_guard_service
 
 
 def run(
-    action: str, market: Dict[str, Any], risk_band: Optional[str] = None, growth_style: bool = False
+    action: str, market: Dict[str, Any], risk_band: Optional[str] = None, growth_style: bool = False,
+    holding_pct: Optional[float] = None,
 ) -> Dict[str, Any]:
-    return sell_guard_service.classifier_agent(action, market, risk_band, growth_style)
+    return sell_guard_service.classifier_agent(action, market, risk_band, growth_style, holding_pct)

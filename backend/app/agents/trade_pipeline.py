@@ -72,17 +72,21 @@ def run(
         f"compare the market before and after the refresh ({_where(market['computed_by'], lang)}): {market['tickers_falling_together']} of {market['tracked_tickers']} tracked tickers fell together",
         f"comparer le marché avant et après l'actualisation ({_where(market['computed_by'], lang)}) : {market['tickers_falling_together']} des {market['tracked_tickers']} titres suivis ont baissé ensemble")})
 
+    position = None
+    if persona_id in PERSONAS:
+        position = sell_guard_service.investor_position(persona_id, ticker, action, account_type, live)
+    # How much of the portfolio this holding is: a big position raises the bar for calling a sell reasoned
+    holding_pct = position["holding_pct"] if position and action == "sell" and position["holds"] else None
+
     # 3. Classifier: market-driven or company-driven, with scores (AWS Lambda; headlines pre-scored by Bedrock)
-    classified = classifier.run(action, market, who["risk_band"], persona_fit.is_growth_style(ticker))
+    classified = classifier.run(action, market, who["risk_band"], persona_fit.is_growth_style(ticker), holding_pct)
     result = classified["trade_check"]
     trace.append({"agent": "Classifier", "action": p(
         f"label the move {result['driver']}-driven and score it, citing {len(result['evidence'])} evidence items ({_where(result['computed_by'], lang)})",
         f"qualifier le mouvement comme lié à « {result['driver']} » et le noter, en citant {len(result['evidence'])} éléments de preuve ({_where(result['computed_by'], lang)})")})
 
-    position = None
     fit = None
     if persona_id in PERSONAS:
-        position = sell_guard_service.investor_position(persona_id, ticker, action, account_type, live)
         profile = stored.get("profile") if stored and stored.get("persona_id") == persona_id else None
         fit = persona_fit.fit(persona_id, action, ticker, result["verdict"], position, lang, risk_band=who["risk_band"], profile=profile)
 

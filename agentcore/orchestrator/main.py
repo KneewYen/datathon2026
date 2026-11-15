@@ -105,7 +105,8 @@ class Run:
         who, market = self.intake(), self.market()
         result = _call(
             "Classifier",
-            {"action": self.p["action"], "ticker": self.p["ticker"], "market": market, "risk_band": who.get("risk_band")},
+            {"action": self.p["action"], "ticker": self.p["ticker"], "market": market, "risk_band": who.get("risk_band"),
+             "persona": self.p.get("persona"), "account_type": self.p.get("account_type")},
             self.session, self.invoker,
         )
         preloaded = bool(result.pop("_preloaded", False))
