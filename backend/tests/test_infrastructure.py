@@ -162,6 +162,9 @@ def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
     assert resources["DemoUserPool"]["Properties"]["AdminCreateUserConfig"] == {
         "AllowAdminCreateUserOnly": True
     }
+    assert resources["BackendApiFunction"]["Properties"]["Environment"]["Variables"][
+        "API_GATEWAY_BASE_PATH"
+    ] == {"Sub": "/${Environment}"}
 
 
 def test_backend_lambda_builds_exclude_the_test_tree() -> None:

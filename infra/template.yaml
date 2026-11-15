@@ -519,6 +519,7 @@ Resources:
           LAMBDA_FUNCTION_NAME: !Ref FinancialToolsFunction
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           FRONTEND_ORIGINS: !Ref FrontendOrigin
+          API_GATEWAY_BASE_PATH: !Sub /${Environment}
       Events:
         ApiProxy:
           Type: HttpApi

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import importlib
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -12,6 +15,50 @@ def test_health_contract() -> None:
     response = TestClient(app).get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "portfolioguard-api"}
+
+
+def test_lambda_handler_strips_configured_api_gateway_stage(monkeypatch) -> None:
+    monkeypatch.setenv("API_GATEWAY_BASE_PATH", "/workshop")
+    import app.lambda_handler as lambda_handler
+
+    lambda_handler = importlib.reload(lambda_handler)
+    response = lambda_handler.handler(
+        {
+            "version": "2.0",
+            "routeKey": "GET /{proxy+}",
+            "rawPath": "/workshop/health",
+            "rawQueryString": "",
+            "headers": {"host": "example.execute-api.us-east-1.amazonaws.com"},
+            "requestContext": {
+                "accountId": "010928180049",
+                "apiId": "v1g9tljo4k",
+                "domainName": "example.execute-api.us-east-1.amazonaws.com",
+                "domainPrefix": "example",
+                "http": {
+                    "method": "GET",
+                    "path": "/workshop/health",
+                    "protocol": "HTTP/1.1",
+                    "sourceIp": "127.0.0.1",
+                    "userAgent": "test",
+                },
+                "requestId": "test-request",
+                "routeKey": "GET /{proxy+}",
+                "stage": "workshop",
+                "time": "15/Nov/2026:22:00:00 +0000",
+                "timeEpoch": 1794780000000,
+            },
+            "isBase64Encoded": False,
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == {
+        "status": "ok",
+        "service": "portfolioguard-api",
+    }
+    monkeypatch.delenv("API_GATEWAY_BASE_PATH")
+    importlib.reload(lambda_handler)
 
 
 def test_local_dashboard_origins_are_allowed() -> None:
