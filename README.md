@@ -1,6 +1,6 @@
 # PortfolioGuard AI
 
-**Team 62 · AlphaForge AI Datathon 2026**
+***Team 62 · AlphaForge AI Datathon 2026***
 
 PortfolioGuard AI is an evidence-backed decision-support prototype for fictional
 TFSA and RRSP portfolios. It delegates a scenario through a real agent hierarchy,
