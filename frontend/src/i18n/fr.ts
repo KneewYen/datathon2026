@@ -54,6 +54,8 @@ export const fr: Record<MessageKey, string> = {
   "landing.continueBody": "L'espace de travail exécute le calcul vérifié sur des données de marché versionnées, demande à un modèle d'IA d'expliquer le résultat en s'appuyant uniquement sur ces preuves et montre chaque étape franchie par les agents. Rien sur cette page d'accueil ne remplace un résultat en direct.",
   "landing.open": "Ouvrir l'espace de travail",
   "landing.footerCredit": "Datathon AlphaForge AI 2026 · Équipe 62",
+  "holdings.account": "Compte",
+  "holdings.accountHint": "Choisissez où négocier",
   "account.TFSA": "CELI",
   "account.RRSP": "REER",
   "account.FHSA": "CELIAPP",

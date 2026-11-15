@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { api, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck, type TradeVerdict } from "@/lib/api";
+import { api, type Account, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck, type TradeVerdict } from "@/lib/api";
 import { translate, useLanguage, type MessageKey } from "@/i18n";
 import { noteText } from "@/i18n/labels";
 import { fmtCad, fmtNumber, fmtPercent, fmtSigned } from "@/i18n/format";
@@ -43,6 +43,8 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   const { t, tOr } = useLanguage();
   const persona = PERSONAS.find((p) => p.id === personaId)!;
   const [data, setData] = useState<Portfolio | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountType, setAccountType] = useState("Non-registered");
   const [market, setMarket] = useState<MarketStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   useEffect(() => {
     let live = true;
     api
-      .portfolio(personaId)
+      .portfolio(personaId, accountType)
       .then((result) => {
         if (!live) return;
         setData(result);
@@ -65,11 +67,12 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
       .catch((reason) => {
         if (live) setError(reason instanceof Error ? reason.message : translate("holdings.err.load"));
       });
+    api.accounts(personaId).then((list) => live && setAccounts(list)).catch(() => {});
     api.market().then((status) => live && setMarket(status)).catch(() => {});
     return () => {
       live = false;
     };
-  }, [personaId]);
+  }, [personaId, accountType]);
 
   const refreshed = data?.refreshed ?? false;
 
@@ -83,7 +86,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
     setError(null);
     try {
       setMarket(await api.refreshMarket());
-      setData(await api.portfolio(personaId));
+      setData(await api.portfolio(personaId, accountType));
       setCheck(null);
       setNote(null);
     } catch (reason) {
@@ -95,7 +98,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
 
   async function resetMarket() {
     setMarket(await api.resetMarket());
-    setData(await api.portfolio(personaId));
+    setData(await api.portfolio(personaId, accountType));
     setCheck(null);
     setDeltas({});
     setCashDelta(0);
@@ -158,6 +161,50 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
               ? t("holdings.refreshed", { rows: market?.new_price_rows ?? 0, headlines: market?.new_headlines ?? 0 })
               : t("holdings.refreshHint")}
           </p>
+        </div>
+        <div className="w-full sm:max-w-[31rem]">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              {t("holdings.account")}
+            </span>
+            <span className="text-[10px] text-slate-400">{t("holdings.accountHint")}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
+            {accounts.map((account) => {
+              const active = account.type === accountType;
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setAccountType(account.type);
+                    setCheck(null);
+                    setDeltas({});
+                    setCashDelta(0);
+                    setNote(null);
+                  }}
+                  className={`group rounded-lg px-2.5 py-2 text-left transition ${
+                    active
+                      ? "bg-white text-navy shadow-sm ring-1 ring-slate-200"
+                      : "text-slate-500 hover:bg-white/70 hover:text-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold ${
+                      active ? "bg-brand-500 text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
+                    }`}>
+                      {account.type === "Non-registered" ? "N" : account.type}
+                    </span>
+                    <span className="truncate text-[11px] font-semibold">{account.name}</span>
+                  </span>
+                  <span className="mt-1 block pl-6 text-[10px] tabular-nums text-slate-400">
+                    {fmtCad(account.balance)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {refreshed ? (

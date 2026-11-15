@@ -52,6 +52,8 @@ export const en = {
   "landing.continueBody": "The workspace runs the verified calculation on versioned market data, asks an AI model to explain the result using only that evidence, and shows every step the agents took. Nothing on this landing page stands in for a live result.",
   "landing.open": "Open the workspace",
   "landing.footerCredit": "AlphaForge AI Datathon 2026 · Team 62",
+  "holdings.account": "Account",
+  "holdings.accountHint": "Choose where to trade",
   "account.TFSA": "TFSA",
   "account.RRSP": "RRSP",
   "account.FHSA": "FHSA",

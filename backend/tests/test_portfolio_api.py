@@ -29,6 +29,19 @@ def test_positions_have_fictional_shares_cash_and_reprice_on_refresh():
     assert abs(after["total_value_cad"] - after["invested_cad"] - after["cash_cad"]) < 0.01
 
 
+def test_demo_accounts_are_seeded_and_portfolios_are_account_linked():
+    accounts = client.get("/api/accounts", params={"user_id": "demo", "persona_id": "amira"}).json()
+    assert {account["type"] for account in accounts} == {"TFSA", "RRSP", "Non-registered"}
+    assert all(account["persona_id"] == "amira" and account["balance"] > 0 for account in accounts)
+
+    non_registered = client.get("/api/portfolio/amira", params={"account_type": "Non-registered"}).json()
+    tfsa = client.get("/api/portfolio/amira", params={"account_type": "TFSA"}).json()
+    assert non_registered["account_type"] == "Non-registered"
+    assert tfsa["account_type"] == "TFSA"
+    assert non_registered["total_value_cad"] != tfsa["total_value_cad"]
+    assert non_registered["holdings"] and tfsa["holdings"]
+
+
 def test_refresh_loads_second_dataset():
     status = client.post("/api/market/refresh").json()
     assert status["refreshed"] is True and status["new_price_rows"] == 55 and status["new_headlines"] > 0

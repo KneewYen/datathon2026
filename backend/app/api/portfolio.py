@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -34,9 +34,9 @@ def reset_market() -> Dict[str, Any]:
 
 
 @router.get("/portfolio/{persona_id}")
-def portfolio(persona_id: str) -> Dict[str, Any]:
+def portfolio(persona_id: str, account_type: Optional[str] = None) -> Dict[str, Any]:
     """Holdings for a persona on the current live market."""
-    return sell_guard_service.portfolio(_persona(persona_id))
+    return sell_guard_service.portfolio(_persona(persona_id), account_type)
 
 
 @router.get("/trade-check/{ticker}")
