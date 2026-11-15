@@ -262,6 +262,8 @@ Resources:
 
   WorkflowAgentFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       FunctionName: !Sub portfolioguard-${Environment}-agent-runtime
       CodeUri: ../backend/
@@ -276,6 +278,8 @@ Resources:
 
   WorkflowCoordinatorFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       FunctionName: !Sub portfolioguard-${Environment}-workflow-coordinator
       CodeUri: ../backend/
@@ -498,6 +502,8 @@ Resources:
 
   BackendApiFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       FunctionName: !Sub portfolioguard-${Environment}-api
       CodeUri: ../backend/

@@ -164,6 +164,21 @@ def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
     }
 
 
+def test_backend_lambda_builds_exclude_the_test_tree() -> None:
+    resources = load_template()["Resources"]
+
+    for logical_id in (
+        "BackendApiFunction",
+        "WorkflowAgentFunction",
+        "WorkflowCoordinatorFunction",
+    ):
+        assert resources[logical_id]["Metadata"]["BuildMethod"] == "makefile"
+
+    makefile = (ROOT / "backend" / "Makefile").read_text()
+    assert "cp -R app" in makefile
+    assert "tests" not in makefile
+
+
 def test_standard_workflow_has_a_bounded_execution_timeout() -> None:
     definition = json.loads(
         (ROOT / "infra" / "workflows" / "investment_analysis.asl.json").read_text()
