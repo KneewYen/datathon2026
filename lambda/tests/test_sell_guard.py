@@ -60,7 +60,7 @@ class SellGuardTests(unittest.TestCase):
         result = evaluate_sell("ENB.TO", self.current, self.change, self.news, "2026-11-13")
         ids = {item["evidence_id"] for item in result["evidence"]}
         self.assertIn("ENB.TO:drop", ids)
-        self.assertTrue(all(i["formula_version"] == "trade-guard-v3" for i in result["evidence"]))
+        self.assertTrue(all(i["formula_version"] == "trade-guard-v4" for i in result["evidence"]))
         sentiment = next(i for i in result["evidence"] if i["evidence_id"] == "ENB.TO:sentiment")
         self.assertIsNotNone(sentiment["value"])  # headlines are model-scored
 

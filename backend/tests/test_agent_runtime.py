@@ -74,6 +74,7 @@ class FakeAgentCore:
 def deployed(monkeypatch, reply):
     monkeypatch.setenv("AGENTS", "agentcore")
     monkeypatch.delenv("ORCHESTRATOR_AGENT_ARN", raising=False)  # a developer's .env must not leak into the test
+    monkeypatch.delenv("INVESTOR_AGENT_ARN", raising=False)
     monkeypatch.setenv("AGENT_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/x")
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     fake = FakeAgentCore(reply)

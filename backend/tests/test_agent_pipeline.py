@@ -127,7 +127,10 @@ def test_pipeline_runs_the_four_agents_in_order_and_passes_evidence_ids_along():
 def test_the_same_nvidia_sale_is_judged_by_who_is_selling_it():
     run = lambda persona, account=None: trade_pipeline.run("sell", "NVDA", persona, account, True, "en", client=Model(text(GOOD)))
     assert run("amira")["trade_check"]["verdict"] == "panic_risk"  # long horizon, high risk: fear
-    assert run("amira", "RRSP")["trade_check"]["verdict"] == "mixed"  # the RRSP lowers the band one step
+    # The RRSP lowers the band one step, but NVDA is about 40% of Amira's portfolio: a sale that big needs
+    # more evidence, so the concentration keeps it a panic sell.
+    rrsp = run("amira", "RRSP")["trade_check"]
+    assert rrsp["verdict"] == "panic_risk" and rrsp["profile_adjustment"]["concentration_bias"] > 0
     robert = run("robert")
     assert robert["intake"]["risk_band"] == "low"
     assert robert["trade_check"]["verdict"] == "evidence_supported"  # growth stock, short horizon: fits his plan
