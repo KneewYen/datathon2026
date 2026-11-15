@@ -257,6 +257,24 @@ export type AnalysisResponse = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const USER_ID = "demo";
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
+export function isRetryableApiError(error: unknown) {
+  if (error instanceof TypeError) return true;
+  return (
+    error instanceof ApiRequestError &&
+    [429, 500, 502, 503, 504].includes(error.status)
+  );
+}
+
 export const DEMO_QUESTION =
   "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
 
@@ -290,7 +308,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    throw new ApiRequestError(`API request failed (${response.status})${detail}`, response.status);
   }
   return response.json();
 }
@@ -302,7 +320,7 @@ async function get<T>(path: string): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    throw new ApiRequestError(`API request failed (${response.status})${detail}`, response.status);
   }
   return response.json();
 }

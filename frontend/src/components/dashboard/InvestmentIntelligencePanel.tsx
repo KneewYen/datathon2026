@@ -4,13 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import {
   api,
   INVESTMENT_QUESTION,
+  isRetryableApiError,
   type AccountOption,
   type DelegationRecord,
   type ExecutionEvent,
   type InvestmentAnalysisResponse,
   type WorkflowStartResponse,
+  type WorkflowStatusResponse,
 } from "@/lib/api";
 import { traceRows } from "@/lib/executionTrace";
+import { pollWorkflow } from "@/lib/workflowPolling";
 
 const money = new Intl.NumberFormat("en-CA", {
   style: "currency",
@@ -47,7 +50,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AccountCard({ option }: { option: AccountOption }) {
+function AccountCard({ option, targetTicker }: { option: AccountOption; targetTicker: string }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -62,7 +65,7 @@ function AccountCard({ option }: { option: AccountOption }) {
       </div>
 
       <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-        <Metric label="Covered NVIDIA exposure" value={change(option.current_nvda_exposure, option.proposed_nvda_exposure)} />
+        <Metric label={`Covered ${targetTicker} exposure`} value={change(option.current_nvda_exposure, option.proposed_nvda_exposure)} />
         <Metric label="Annualized volatility" value={change(option.current_volatility, option.proposed_volatility)} />
         <Metric label="Historical max drawdown" value={change(option.current_max_drawdown, option.proposed_max_drawdown)} />
         <Metric label="Concentration HHI" value={change(option.current_concentration, option.proposed_concentration, (value) => value.toFixed(3))} />
@@ -89,10 +92,10 @@ function AccountCard({ option }: { option: AccountOption }) {
 function ExecutionTrace({ events }: { events: ExecutionEvent[] }) {
   return (
     <ol className="space-y-2">
-      {traceRows(events).map(({ event, depth }) => {
+      {traceRows(events).map(({ event, depth }, index) => {
         return (
           <li
-            key={event.event_id}
+            key={`${event.event_id}-${index}`}
             className="rounded-md border border-slate-200 bg-white px-3 py-3"
             style={{ marginLeft: `${Math.min(depth, 3) * 18}px` }}
           >
@@ -179,20 +182,16 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
       setResult(null);
       setWorkflowStatus("RUNNING");
       const workflow = started as WorkflowStartResponse;
-      for (let attempt = 0; attempt < 160; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 750));
-        const status = await api.investmentAnalysisStatus(workflow.request_id);
-        setWorkflowStatus(status.status);
-        setWorkflowEvents(status.events);
-        if (status.status === "SUCCEEDED" && status.result) {
-          setResult(status.result);
-          return;
-        }
-        if (status.status !== "RUNNING") {
-          throw new Error(status.error ?? `AWS workflow ended with ${status.status}`);
-        }
-      }
-      throw new Error("AWS workflow status timed out in the browser");
+      const completed = await pollWorkflow<InvestmentAnalysisResponse, WorkflowStatusResponse>({
+        getStatus: () => api.investmentAnalysisStatus(workflow.request_id),
+        onStatus: (status) => {
+          setWorkflowStatus(status.status);
+          setWorkflowEvents(status.events ?? []);
+        },
+        isRetryableError: isRetryableApiError,
+      });
+      setResult(completed);
+      return;
     } catch (reason) {
       setResult(null);
       setError(reason instanceof Error ? reason.message : "Investment analysis failed");
@@ -294,7 +293,7 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
                 <p className="mt-3 text-[10px] text-emerald-200">Explanation model: {result.model_id}</p>
               </div>
               <dl className="grid grid-cols-2 gap-x-5 gap-y-3 rounded-md border border-slate-200 p-4 text-sm">
-                <div><dt className="text-xs text-slate-500">Direct NVIDIA</dt><dd className="font-bold text-navy">{percent.format(portfolio?.direct_weight ?? 0)}</dd></div>
+                <div><dt className="text-xs text-slate-500">Direct {result.intent?.ticker}</dt><dd className="font-bold text-navy">{percent.format(portfolio?.direct_weight ?? 0)}</dd></div>
                 <div><dt className="text-xs text-slate-500">ETF look-through</dt><dd className="font-bold text-navy">{percent.format(portfolio?.indirect_weight ?? 0)}</dd></div>
                 <div><dt className="text-xs text-slate-500">Covered total</dt><dd className="font-bold text-navy">{money.format(portfolio?.total_exposure_cad ?? 0)}</dd></div>
                 <div><dt className="text-xs text-slate-500">As analyzed</dt><dd className="font-bold text-navy">{result.intent?.currency} {result.intent?.amount.toLocaleString("en-CA")}</dd></div>
@@ -307,7 +306,7 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
                 <p className="text-xs text-slate-500">Historical simulation · CAD reporting · fractional shares</p>
               </div>
               <div className="grid gap-4 xl:grid-cols-2">
-                {result.account_options.map((option) => <AccountCard key={option.account_id} option={option} />)}
+                {result.account_options.map((option) => <AccountCard key={option.account_id} option={option} targetTicker={result.intent?.ticker ?? "target"} />)}
               </div>
             </div>
 
