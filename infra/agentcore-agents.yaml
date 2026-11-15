@@ -178,6 +178,11 @@ Resources:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource: !Sub arn:${AWS::Partition}:s3:::${DataBucketName}/agents/agentcore/orchestrator.zip
+              - Sid: ReadAssetUniverseToResolveTickers
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${DataBucketName}/${DataPrefix}/assets_universe.csv
               - Sid: CallTheFourSpecialistAgents
                 Effect: Allow
                 Action:
@@ -398,6 +403,8 @@ Resources:
         AWS_REGION: !Ref AWS::Region
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         AGENT_RUNTIME_NAME: !Sub portfolioguard_orchestrator_${Environment}
+        DATA_BUCKET: !Ref DataBucketName
+        DATA_PREFIX: !Ref DataPrefix
         LLM_ROUTING: "on"
         INTAKE_AGENT_ARN: !GetAtt IntakeRuntime.AgentRuntimeArn
         MARKET_AGENT_ARN: !GetAtt MarketRuntime.AgentRuntimeArn
