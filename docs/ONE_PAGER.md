@@ -15,23 +15,26 @@ the system delegates it through account and strategy agents, calculates historic
 risk in AWS, applies governance rules, and uses Amazon Bedrock only to explain
 verified evidence.
 
-The first scenario asks:
+The flagship scenario asks:
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
 ## Why it is agentic
 
 ```text
-Global Orchestrator
-  → TFSA or RRSP Account Agent
-    → relevant Growth / Dividend / Momentum / Preservation Agents
-      → deterministic AWS Lambda financial tool
+Global AI Orchestrator
+  → validated selection of TFSA and/or RRSP Account AI Orchestrators
+    → validated selection of permitted strategy agents
+      → validated selection of allowlisted deterministic tools
+        → fixed Step Functions dispatch to AWS Lambda
   → Governance Agent
   → Bedrock Explainability Agent
 ```
 
-Every delegation is typed, recorded, visible in the dashboard, and covered by
-tests. Agents that do not contribute to a request are not invoked.
+Every model decision passes through a deterministic allowlist gate before it can
+become a Step Functions Map item. Every delegation is typed, recorded, visible in
+the dashboard, and covered by tests. Agents and tools that are not selected are not
+invoked. Mandatory safety analysis is visibly labeled as policy-enforced.
 
 ## Why the result is trustworthy
 
@@ -45,18 +48,20 @@ tests. Agents that do not contribute to a request are not invoked.
 - Historical observations are clearly separated from future outcomes.
 - The application cannot execute a trade.
 
-## Primary result
+## Primary decision support
 
-In the reviewed historical window, the proposed fictional shift lowers annualized
-volatility from 18.48% to 13.71% and improves maximum drawdown from -19.72% to
--15.53%. Historical annualized return also falls from 30.80% to 27.42%. The answer
-is therefore “lower measured historical risk, with a return trade-off,” not a
-recommendation or forecast.
+The system discovers existing direct NVIDIA holdings and covered QQQ/SPY overlap
+before simulating the purchase in each populated account. It compares account cash,
+company exposure, historical volatility, drawdown, concentration, objectives, and
+risk limits. If TFSA and RRSP agents disagree, governance preserves the conflict
+instead of forcing one recommendation.
 
 ## AWS contribution
 
 - **Amazon S3:** encrypted, private, versioned source data.
 - **AWS Lambda:** deterministic financial calculations.
+- **AWS Step Functions:** durable, dynamic hierarchy with nested account,
+  specialist, and tool Maps plus an execution history shown live in the dashboard.
 - **Amazon Bedrock:** grounded explanation through the Converse API.
 - **IAM:** least-privilege access to the function and selected model resources.
 - **CloudWatch:** correlated structured execution logs.
@@ -70,9 +75,9 @@ an honest unavailable state instead of placeholder results.
 
 ## Status and next step
 
-The complete local vertical slice, infrastructure template, data manifest, tests,
-CI, and dashboard are ready. The template is configured for the organizer workshop
-in `us-east-1` and the US Nova Lite inference profile. Core AWS infrastructure has
-been deployed and verified. One bounded Lambda acceptance test read the versioned
-S3 dataset and matched the local deterministic engine exactly. The next separately
-gated step is one Nova Lite explanation test; Bedrock has not yet been invoked.
+The cross-account slice, dynamic AWS state machine, named Nova agents, API polling,
+tests, and dashboard delegation ledger are implemented and locally validated. Core
+AWS infrastructure and the earlier strategy-shift Lambda were previously verified,
+but this workflow update is not deployed. The existing superseded change set must
+not be executed. Creating a replacement no-execute change set, executing it, and
+running the first bounded live workflow each remain separate approval gates.

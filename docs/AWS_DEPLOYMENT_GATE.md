@@ -1,8 +1,10 @@
 # Polyfinances workshop deployment readiness
 
-**Verification date:** 2026-11-14
-**Status:** Application stack, dataset, and one live Lambda acceptance run are
-verified; Bedrock remains prohibited pending separate approval
+**Verification date:** 2026-11-15
+**Status:** Existing four-resource stack, dataset, and one prior Lambda acceptance
+run are verified. The first orchestration change set is unsafe and prohibited from
+execution. Compatibility/security fixes are local only; a replacement no-execute
+change set requires explicit approval.
 **Region:** `us-east-1`
 **Profile:** `portfolioguard-workshop`
 **Account:** `010928180049`
@@ -10,6 +12,146 @@ verified; Bedrock remains prohibited pending separate approval
 
 Temporary credentials, access keys, secret keys, and session tokens must never be
 placed in the repository, logs, screenshots, or chat.
+
+## Reconciliation after the first orchestration review — 2026-11-15
+
+Change set `samcli-deploy1794769828` was rejected and **must not be executed or
+recreated**. During the final read-only check, CloudFormation reported that it no
+longer exists and `ListChangeSets` returned an empty list. It was not applied: the
+stack still contains only its original four logical resources and no Step Functions,
+HTTP API, Cognito, or agent resources.
+
+An external stack update completed at 2026-11-15 19:24 UTC while this review was in
+progress. Stack events show that it modified only `FinancialToolsFunction`. This
+branch did not initiate that update. The current artifact and processed template
+were therefore recovered again through read-only APIs before the local
+reconciliation was finalized.
+
+The exact deployed Lambda artifact was recovered through the read-only Lambda API
+and verified by its deployed SHA-256 configuration value. It contains these
+established operations:
+
+- `compare_strategy_shift`
+- `market_status`
+- `portfolio_snapshot`
+- `trade_check`
+- `sentiment_summary`
+- `score_headlines`
+- `market_agent`
+- `classifier_agent`
+- `investor_position`
+
+The reconciled branch preserves their reviewed source modules and dispatcher, then
+adds `analyze_holdings_exposure`, `market_snapshot`, and
+`simulate_account_purchase`. Legacy callers receive their established response
+shape; Step Functions trace metadata is added only when a caller supplies a
+`parent_event_id`.
+
+The source template now preserves the live financial Lambda's 120-second timeout,
+reserved concurrency of five, `DATA_PREFIX`, `DATASET_ID`, `MARKET_PREFIX`,
+`MARKET_DATASET_ID`, and `BEDROCK_MODEL_ID`. Its role retains manifest-validated
+starter and market reads, writes only to the two approved `news_scored.csv` keys,
+and Nova Lite access through the approved inference profile.
+
+The HTTP API is no longer designed as anonymous. The replacement proposal uses:
+
+- a Cognito user pool with administrator-created demo users only;
+- an OAuth public browser client with no client secret;
+- Authorization Code with PKCE and sixty-minute access tokens;
+- an API Gateway JWT authorizer applied by default;
+- exact callback, logout, and CORS URLs;
+- one request/second stage throttling with burst two;
+- Lambda concurrency bounds and a three-minute Step Functions timeout;
+- schema length/pattern validation and generic production AWS errors.
+
+The browser stores the access token only in session storage. `NEXT_PUBLIC_*`
+configuration contains the domain, public client ID, and redirect URLs, none of
+which are reusable credentials. Local development leaves Cognito variables blank
+and calls local FastAPI normally.
+
+All Nova destination-model statements in the financial, agent, and API roles now
+require `bedrock:InferenceProfileArn` to equal the approved
+`us.amazon.nova-lite-v1:0` profile. No wildcard Bedrock, IAM administration, broad
+S3 write, or financial-transaction permission was added.
+
+No replacement change set has been created and no artifact has been uploaded for
+these fixes. Creating a replacement preview remains a separate approval gate.
+
+## AWS-owned orchestration preflight — 2026-11-15
+
+The refreshed profile resolves to the same account and
+`WSParticipantRole/Participant`. Read-only inspection found:
+
+- stack `portfolioguard-workshop` is `UPDATE_COMPLETE` and still owns exactly the
+  original S3 bucket, financial Lambda, financial-tools role, and log group;
+- zero existing Step Functions state machines;
+- zero existing API Gateway v2 HTTP APIs;
+- the local template passes `sam validate --lint`, the CloudFormation
+  `ValidateTemplate` API, and a clean SAM build for Python 3.12 ARM64;
+- 49 backend tests and 17 financial-Lambda tests pass, one opt-in live-AWS test is
+  skipped, and the two frontend tests, lint, type check, and production build pass.
+
+The template now contains nineteen application-level logical resources. Four are
+existing; fifteen are proposed additions, subject to the transformed change set:
+
+| Proposed logical resource | Type | Purpose |
+| --- | --- | --- |
+| `WorkflowAgentExecutionRole` | IAM role | Nova Lite plus its exact log group |
+| `WorkflowCoordinatorExecutionRole` | IAM role | Coordinator log writes only |
+| `WorkflowAgentFunction` | Lambda | Named orchestrator/account/strategy/explainability calls |
+| `WorkflowCoordinatorFunction` | Lambda | Intent preparation, research boundary, aggregation, governance |
+| `WorkflowAgentLogGroup` | CloudWatch Logs | Fourteen-day agent logs |
+| `WorkflowCoordinatorLogGroup` | CloudWatch Logs | Fourteen-day coordinator logs |
+| `InvestmentWorkflowExecutionRole` | IAM role | Invoke only the three workflow Lambdas |
+| `InvestmentAnalysisStateMachine` | Step Functions Standard | Durable parallel hierarchy and execution history |
+| `DemoUserPool` | Cognito user pool | Administrator-created, short-lived demo identities |
+| `DemoUserPoolClient` | Cognito app client | Public Authorization Code + PKCE client with no secret |
+| `DemoUserPoolDomain` | Cognito domain | Hosted OAuth authorization and logout endpoints |
+| `BackendHttpApi` | API Gateway HTTP API | JWT-protected browser-facing start/status transport |
+| `BackendApiExecutionRole` | IAM role | Start/read workflow plus legacy endpoint access |
+| `BackendApiFunction` | Lambda | Mangum-hosted FastAPI adapter |
+| `BackendApiLogGroup` | CloudWatch Logs | Fourteen-day API logs |
+
+The existing `FinancialToolsFunction` code is also expected to be modified so it
+supports the new deterministic investment operations and correlated execution
+events. CloudFormation may show generated API permission/stage resources after the
+SAM transform; their exact actions must be taken from the no-execute change set,
+not inferred from this source inventory.
+
+### Proposed IAM grants
+
+- Agent runtime: `bedrock:InvokeModel` only on the configured inference-profile
+  ARN and Nova Lite foundation-model ARNs in `us-east-1`, `us-east-2`, and
+  `us-west-2`; log stream/event writes only to its own log group.
+- Coordinator: log stream/event writes only to its own log group.
+- Step Functions: `lambda:InvokeFunction` only on financial tools, agent runtime,
+  and coordinator functions.
+- Backend API: start the one state machine; describe/history-read only its
+  executions; invoke only the financial-tools Lambda for the retained legacy flow;
+  invoke only the approved Nova profile/models for that legacy flow; write only its
+  own logs.
+
+All four new roles have CloudFormation-generated names, narrow service trust
+policies, no managed policy, and no transaction capability. The existing financial
+role retains its S3/read-and-log-only policy.
+
+### Estimated incremental demo cost
+
+A successful full comparison follows roughly twenty Standard state transitions,
+about thirteen Lambda invocations including API polling, and eight Nova Lite calls.
+At public list prices before any free tier, Step Functions is about USD $0.0005 per
+run. Assuming 40,000 total Nova input tokens and 2,000 output tokens across the
+named agents, Nova Lite is about USD $0.0029 per run. Lambda, HTTP API, S3 reads,
+and logs add well under one cent at demo volume. Twenty bounded demo runs should
+remain under USD $0.10; the USD $1.00 ceiling remains conservative. Token volume,
+retries, polling, taxes, Workshop credits, and pricing changes can alter the total.
+
+The HTTP API endpoint remains internet-routable, but every application route uses
+the Cognito JWT authorizer by default. API Gateway throttles the stage to one
+request per second with burst two, while the backend Lambda retains reserved
+concurrency two. CORS is restricted to the configured frontend origin but is not
+treated as authentication. The public OAuth client uses PKCE and has no reusable
+secret; only an administrator-created user can obtain tokens.
 
 ## Live Lambda acceptance verification — 2026-11-14
 
@@ -239,8 +381,9 @@ verification time. The function reserves two, so no quota blocker was found.
 
 ## 3. Resource inventory
 
-The SAM artifact bucket, two packaging objects, and four application resources now
-exist. The dataset bucket remains empty and no service has been invoked.
+The SAM artifact bucket, packaging objects, and four application resources exist.
+The approved seven dataset objects are present; no service was invoked during the
+2026-11-15 orchestration preflight.
 
 | Resource | Created by | Purpose | Charge surface | Cleanup |
 | --- | --- | --- | --- | --- |
@@ -294,16 +437,19 @@ service-control restriction or if a later live Nova call is denied.
 
 ## 6. Next approval step
 
-The minimum safe next phase is **one bounded Nova Lite acceptance invocation only**:
+The minimum safe next phase is **build/package plus a no-execute change set only**:
 
-1. Refresh the `portfolioguard-workshop` profile privately if needed and re-run STS.
-2. Send only the already-verified deterministic evidence to
-   `us.amazon.nova-lite-v1:0` using the production explanation schema.
-3. Validate evidence IDs, numeric-firewall behavior, limitations, latency, usage,
-   and cost without allowing Nova to create financial values.
-4. Stop before any additional Lambda or Bedrock invocation.
+1. Reconfirm STS privately with profile `portfolioguard-workshop` in `us-east-1`.
+2. Build/package the already validated SAM application.
+3. run `sam deploy --no-execute-changeset --capabilities CAPABILITY_IAM` against
+   only `portfolioguard-workshop`;
+4. inspect every Add/Modify/Remove action, generated API resource, IAM policy,
+   replacement flag, artifact, and parameter;
+5. stop and report without executing the change set.
 
-No Bedrock invocation should occur until the user explicitly approves step 2.
+This step requires explicit approval. Change-set execution and the first live
+workflow remain separate approval gates. No Lambda or Bedrock invocation is
+authorized by change-set review.
 
 ## 7. Secure credentials and cleanup
 

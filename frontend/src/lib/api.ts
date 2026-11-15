@@ -1,4 +1,5 @@
 import type { PersonaId } from "./personas";
+import { apiAuthorizationHeader } from "./auth";
 
 export type Proposal = {
   id: string;
@@ -55,6 +56,7 @@ export type ApiMeta = {
     lambda: IntegrationStatus;
     bedrock: IntegrationStatus;
     dataset: IntegrationStatus;
+    orchestration: IntegrationStatus;
   };
 };
 
@@ -80,7 +82,7 @@ export type TraceStep = {
   parent_id: string | null;
   agent: string;
   action: string;
-  status: "completed" | "blocked" | "failed";
+  status: "running" | "completed" | "blocked" | "failed";
   delegated_to: string[];
   evidence_ids: string[];
   details: Record<string, unknown>;
@@ -99,6 +101,136 @@ export type AgentFinding = {
   summary: string;
   requested_operations: string[];
   evidence_ids: string[];
+};
+
+export type InvestmentIntent = {
+  operation: "buy";
+  ticker: string;
+  amount: number;
+  currency: "CAD" | "USD";
+  account_ids: string[];
+  compare_accounts: boolean;
+};
+
+export type EvidenceRecord = {
+  evidence_id: string;
+  category: "calculation" | "market" | "holdings" | "research" | "governance";
+  label: string;
+  value: number | string;
+  unit: string;
+  source: string;
+  as_of: string;
+  details: Record<string, unknown>;
+};
+
+export type ExecutionEvent = {
+  event_id: string;
+  parent_id: string | null;
+  request_id: string;
+  kind: "orchestrator" | "agent" | "tool" | "governance" | "explainability";
+  agent: string;
+  tool_name: string | null;
+  started_at: string;
+  ended_at: string;
+  status: "completed" | "blocked" | "failed";
+  evidence_ids: string[];
+  input_summary: string;
+  output_summary: string;
+  error: string | null;
+};
+
+export type DelegationRecord = {
+  delegation_id: string;
+  request_id: string;
+  decision_maker: string;
+  target_kind: "account" | "agent" | "tool";
+  target: string;
+  selected: boolean;
+  decision_source: "model" | "mandatory_policy";
+  rationale: string;
+  parent_event_id: string;
+  actual_invocation_status: "selected" | "completed" | "blocked" | "failed" | "not_invoked";
+  evidence_ids: string[];
+};
+
+export type AccountOption = {
+  account_id: string;
+  account_type: "TFSA" | "RRSP";
+  account_name: string;
+  objective: string;
+  risk_tolerance: string;
+  compatibility: "compatible" | "caution" | "conflict" | "blocked";
+  shares_purchasable: number;
+  purchase_price_cad: number;
+  remaining_cash_cad: number;
+  current_nvda_exposure: number;
+  proposed_nvda_exposure: number;
+  portfolio_current_nvda_exposure: number;
+  portfolio_proposed_nvda_exposure: number;
+  current_volatility: number;
+  proposed_volatility: number;
+  current_max_drawdown: number;
+  proposed_max_drawdown: number;
+  current_concentration: number;
+  proposed_concentration: number;
+  current_target_correlation: number;
+  proposed_target_correlation: number;
+  current_target_risk_contribution: number;
+  proposed_target_risk_contribution: number;
+  evidence_ids: string[];
+  strategy_findings: AgentFinding[];
+};
+
+export type ResearchResult = {
+  status: "available" | "unavailable" | "failed";
+  provider: string;
+  retrieved_at: string;
+  items: Array<Record<string, unknown>>;
+  limitations: string[];
+};
+
+export type InvestmentAnalysisResponse = {
+  request_id: string;
+  status: "completed" | "partial" | "clarification_required";
+  question: string;
+  clarification: string | null;
+  intent: InvestmentIntent | null;
+  investor: Record<string, unknown>;
+  accounts: Array<Record<string, unknown>>;
+  current_exposure: Record<string, number>;
+  account_options: AccountOption[];
+  governance: GovernanceFinding[];
+  research: ResearchResult;
+  evidence: EvidenceRecord[];
+  trace: ExecutionEvent[];
+  delegations: DelegationRecord[];
+  answer: string;
+  assumptions: string[];
+  limitations: string[];
+  model_id: string;
+  disclaimer: string;
+};
+
+export type WorkflowStartResponse = {
+  request_id: string;
+  execution_arn: string;
+  status: "RUNNING";
+  mode: "aws_step_functions";
+};
+
+export type WorkflowStatusResponse = {
+  request_id: string;
+  execution_arn: string;
+  status:
+    | "RUNNING"
+    | "SUCCEEDED"
+    | "FAILED"
+    | "TIMED_OUT"
+    | "ABORTED"
+    | "PENDING_REDRIVE";
+  events: ExecutionEvent[];
+  result: InvestmentAnalysisResponse | null;
+  error: string | null;
 };
 
 export type AnalysisResponse = {
@@ -125,13 +257,34 @@ export type AnalysisResponse = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const USER_ID = "demo";
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
+export function isRetryableApiError(error: unknown) {
+  if (error instanceof TypeError) return true;
+  return (
+    error instanceof ApiRequestError &&
+    [429, 500, 502, 503, 504].includes(error.status)
+  );
+}
+
 export const DEMO_QUESTION =
   "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
+
+export const INVESTMENT_QUESTION =
+  "I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?";
 
 export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
   const response = await fetch(`${API_URL}/api/analysis`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...apiAuthorizationHeader() },
     body: JSON.stringify({
       persona_id,
       question: DEMO_QUESTION,
@@ -149,23 +302,25 @@ export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisRespon
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...apiAuthorizationHeader() },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    throw new ApiRequestError(`API request failed (${response.status})${detail}`, response.status);
   }
   return response.json();
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`);
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: apiAuthorizationHeader(),
+  });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    throw new ApiRequestError(`API request failed (${response.status})${detail}`, response.status);
   }
   return response.json();
 }
@@ -176,4 +331,13 @@ export const api = {
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
   accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
   meta: () => get<ApiMeta>("/api/meta"),
+  investmentAnalysis: (question: string) =>
+    post<InvestmentAnalysisResponse | WorkflowStartResponse>(
+      "/api/investment-analysis",
+      { question },
+    ),
+  investmentAnalysisStatus: (requestId: string) =>
+    get<WorkflowStatusResponse>(
+      `/api/investment-analysis/executions/${encodeURIComponent(requestId)}`,
+    ),
 };

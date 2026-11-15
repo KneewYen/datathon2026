@@ -20,11 +20,30 @@ Parameters:
   DatasetId:
     Type: String
     Default: alphaforge-starter-v1
+  MarketPrefix:
+    Type: String
+    Default: simulated/v1
+    Description: S3 prefix holding the simulated market prices and headlines
+  MarketDatasetId:
+    Type: String
+    Default: simulated-market-v1
   BedrockModelId:
     Type: String
     Default: us.amazon.nova-lite-v1:0
     AllowedValues: [us.amazon.nova-lite-v1:0]
     Description: Bedrock model or inference profile ID used by the FastAPI backend
+  FrontendOrigin:
+    Type: String
+    Default: http://localhost:3000
+    Description: Browser origin permitted to call the PortfolioGuard HTTP API
+  FrontendAuthCallbackUrl:
+    Type: String
+    Default: http://localhost:3000/auth/callback
+    Description: Exact OAuth callback URL for the demo browser client
+  FrontendLogoutUrl:
+    Type: String
+    Default: http://localhost:3000
+    Description: Exact post-logout URL for the demo browser client
 
 Globals:
   Function:
@@ -76,7 +95,7 @@ Resources:
   FinancialToolsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Least-privilege execution role for PortfolioGuard financial tools
+      Description: Least-privilege execution role for PortfolioGuard financial tools and headline scoring
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -85,7 +104,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ReadVersionedPortfolioGuardDatasetAndWriteLogs
+        - PolicyName: ReadVersionedPortfolioGuardDataScoreHeadlinesAndWriteLogs
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -102,6 +121,32 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub >-
                   arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-financial-tools:*
+              - Sid: ReadSimulatedMarketData
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${DataBucket.Arn}/${MarketPrefix}/*
+              - Sid: WriteScoredHeadlinesOnly
+                Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/current/news_scored.csv
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/marketchange/news_scored.csv
+              - Sid: InvokeNovaLiteInferenceProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeNovaLiteDestinationModels
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
       Tags:
         - Key: Project
           Value: PortfolioGuardAI
@@ -116,12 +161,16 @@ Resources:
       FunctionName: !Sub portfolioguard-${Environment}-financial-tools
       CodeUri: ../lambda/financial_tools/
       Handler: handler.handler
-      Description: Deterministic portfolio calculations using versioned S3 market data
-      ReservedConcurrentExecutions: 2
+      Description: Portfolio and trade calculations plus headline classification, using versioned S3 market data
+      Timeout: 120
+      ReservedConcurrentExecutions: 5
       Role: !GetAtt FinancialToolsExecutionRole.Arn
       Environment:
         Variables:
           DATA_BUCKET: !Ref DataBucket
+          MARKET_PREFIX: !Ref MarketPrefix
+          MARKET_DATASET_ID: !Ref MarketDatasetId
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
 
   FinancialToolsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -135,6 +184,365 @@ Resources:
           Value: PortfolioGuardAI
         - Key: Environment
           Value: !Ref Environment
+
+  WorkflowAgentExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Invoke Nova Lite for constrained PortfolioGuard agent reasoning
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeApprovedNovaProfileAndWriteLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: InvokeApprovedNovaProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeApprovedNovaDestinations
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: WriteAgentLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub >-
+                  arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-agent-runtime:*
+      Tags:
+        - Key: Project
+          Value: PortfolioGuardAI
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: AWS-SAM
+
+  WorkflowCoordinatorExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Run deterministic workflow preparation, governance, and aggregation
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WriteCoordinatorLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub >-
+                  arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-workflow-coordinator:*
+      Tags:
+        - Key: Project
+          Value: PortfolioGuardAI
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: AWS-SAM
+
+  WorkflowAgentFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub portfolioguard-${Environment}-agent-runtime
+      CodeUri: ../backend/
+      Handler: app.workflow.handlers.agent_handler
+      Description: Constrained named-agent reasoning through Amazon Bedrock Nova Lite
+      Timeout: 45
+      ReservedConcurrentExecutions: 2
+      Role: !GetAtt WorkflowAgentExecutionRole.Arn
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+
+  WorkflowCoordinatorFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub portfolioguard-${Environment}-workflow-coordinator
+      CodeUri: ../backend/
+      Handler: app.workflow.handlers.coordinator_handler
+      Description: Deterministic workflow preparation, aggregation, and governance
+      Timeout: 30
+      ReservedConcurrentExecutions: 2
+      Role: !GetAtt WorkflowCoordinatorExecutionRole.Arn
+
+  WorkflowAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/portfolioguard-${Environment}-agent-runtime
+      RetentionInDays: 14
+
+  WorkflowCoordinatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/portfolioguard-${Environment}-workflow-coordinator
+      RetentionInDays: 14
+
+  InvestmentWorkflowExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Invoke only the PortfolioGuard workflow Lambda functions
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokePortfolioGuardWorkflowFunctions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt FinancialToolsFunction.Arn
+                  - !GetAtt WorkflowAgentFunction.Arn
+                  - !GetAtt WorkflowCoordinatorFunction.Arn
+      Tags:
+        - Key: Project
+          Value: PortfolioGuardAI
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: AWS-SAM
+
+  InvestmentAnalysisStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub portfolioguard-${Environment}-investment-analysis
+      Type: STANDARD
+      DefinitionUri: workflows/investment_analysis.asl.json
+      DefinitionSubstitutions:
+        AgentFunctionArn: !GetAtt WorkflowAgentFunction.Arn
+        CoordinatorFunctionArn: !GetAtt WorkflowCoordinatorFunction.Arn
+        FinancialToolsFunctionArn: !GetAtt FinancialToolsFunction.Arn
+      Role: !GetAtt InvestmentWorkflowExecutionRole.Arn
+      Tags:
+        Project: PortfolioGuardAI
+        Environment: !Ref Environment
+        ManagedBy: AWS-SAM
+
+  DemoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub portfolioguard-${Environment}-demo-users
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 1
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      UserPoolTags:
+        Project: PortfolioGuardAI
+        Environment: !Ref Environment
+        ManagedBy: AWS-SAM
+
+  DemoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub portfolioguard-${Environment}-browser
+      UserPoolId: !Ref DemoUserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email]
+      CallbackURLs:
+        - !Ref FrontendAuthCallbackUrl
+      LogoutURLs:
+        - !Ref FrontendLogoutUrl
+      SupportedIdentityProviders: [COGNITO]
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  DemoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub portfolioguard-${AWS::AccountId}-${Environment}
+      UserPoolId: !Ref DemoUserPool
+
+  BackendHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: false
+        ThrottlingBurstLimit: 2
+        ThrottlingRateLimit: 1
+      Auth:
+        DefaultAuthorizer: CognitoJwtAuthorizer
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${DemoUserPool}
+              audience:
+                - !Ref DemoUserPoolClient
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref FrontendOrigin
+        AllowHeaders:
+          - authorization
+          - content-type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+      Tags:
+        Project: PortfolioGuardAI
+        Environment: !Ref Environment
+        ManagedBy: AWS-SAM
+
+  BackendApiExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Start and inspect the PortfolioGuard workflow and support the legacy demo
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartAndReadInvestmentWorkflow
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: StartWorkflow
+                Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref InvestmentAnalysisStateMachine
+              - Sid: ReadWorkflowExecution
+                Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                  - states:GetExecutionHistory
+                Resource: !Sub >-
+                  arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:portfolioguard-${Environment}-investment-analysis:*
+              - Sid: InvokeLegacyFinancialTool
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt FinancialToolsFunction.Arn
+              - Sid: InvokeApprovedNovaProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeApprovedNovaDestinations
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: WriteApiLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub >-
+                  arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-api:*
+      Tags:
+        - Key: Project
+          Value: PortfolioGuardAI
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: AWS-SAM
+
+  BackendApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub portfolioguard-${Environment}-api
+      CodeUri: ../backend/
+      Handler: app.lambda_handler.handler
+      Description: PortfolioGuard FastAPI adapter for AWS-hosted orchestration
+      Timeout: 30
+      ReservedConcurrentExecutions: 2
+      Role: !GetAtt BackendApiExecutionRole.Arn
+      Environment:
+        Variables:
+          ORCHESTRATION_MODE: step-functions
+          INVESTMENT_STATE_MACHINE_ARN: !Ref InvestmentAnalysisStateMachine
+          LAMBDA_FUNCTION_NAME: !Ref FinancialToolsFunction
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          FRONTEND_ORIGINS: !Ref FrontendOrigin
+          API_GATEWAY_BASE_PATH: !Sub /${Environment}
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BackendHttpApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiCorsPreflight:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BackendHttpApi
+            Path: /{proxy+}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  BackendApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/portfolioguard-${Environment}-api
+      RetentionInDays: 14
 
 Outputs:
   DataBucketName:
@@ -152,3 +560,22 @@ Outputs:
   BedrockInferenceProfileArn:
     Value: !Sub >-
       arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+  InvestmentStateMachineArn:
+    Description: AWS Step Functions workflow for investment analysis
+    Value: !Ref InvestmentAnalysisStateMachine
+  BackendApiUrl:
+    Description: AWS-hosted FastAPI base URL
+    Value: !Sub https://${BackendHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Environment}
+  WorkflowAgentFunctionArn:
+    Value: !GetAtt WorkflowAgentFunction.Arn
+  WorkflowCoordinatorFunctionArn:
+    Value: !GetAtt WorkflowCoordinatorFunction.Arn
+  DemoUserPoolId:
+    Description: Cognito user pool for the short-lived authenticated demo
+    Value: !Ref DemoUserPool
+  DemoUserPoolClientId:
+    Description: Public PKCE browser client ID; this is not a secret
+    Value: !Ref DemoUserPoolClient
+  DemoAuthDomain:
+    Description: Cognito managed-login domain used by the browser PKCE flow
+    Value: !Sub https://${DemoUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com

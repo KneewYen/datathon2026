@@ -1,0 +1,222 @@
+{
+  "Comment": "PortfolioGuard AI validated dynamic multi-agent investment workflow",
+  "TimeoutSeconds": 180,
+  "StartAt": "Prepare Investment Request",
+  "States": {
+    "Prepare Investment Request": {
+      "Type": "Task",
+      "Resource": "${CoordinatorFunctionArn}",
+      "Parameters": {"operation": "prepare", "request_id.$": "$.request_id", "request.$": "$.request"},
+      "Next": "Clarification Required?",
+      "Retry": [{"ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 1, "MaxAttempts": 2, "BackoffRate": 2}]
+    },
+    "Clarification Required?": {
+      "Type": "Choice",
+      "Choices": [{"Variable": "$.context.status", "StringEquals": "clarification_required", "Next": "Finalize Clarification"}],
+      "Default": "Global AI Orchestrator"
+    },
+    "Finalize Clarification": {
+      "Type": "Task",
+      "Resource": "${CoordinatorFunctionArn}",
+      "Parameters": {"operation": "finalize_clarification", "context.$": "$.context", "trace.$": "$.trace"},
+      "End": true
+    },
+    "Global AI Orchestrator": {
+      "Type": "Task",
+      "Resource": "${AgentFunctionArn}",
+      "Parameters": {"role": "global_orchestrator", "request_id.$": "$.context.request_id", "parent_id": "orchestrator.intent", "context.$": "$.context"},
+      "ResultPath": "$.agents.global",
+      "Next": "Validate Global Account Routing"
+    },
+    "Validate Global Account Routing": {
+      "Type": "Task",
+      "Resource": "${CoordinatorFunctionArn}",
+      "Parameters": {"operation": "validate_global_route", "context.$": "$.context", "global_agent.$": "$.agents.global", "trace.$": "$.trace"},
+      "ResultPath": "$.routing",
+      "Next": "Route Selected Accounts"
+    },
+    "Route Selected Accounts": {
+      "Type": "Map",
+      "ItemsPath": "$.routing.account_routes",
+      "MaxConcurrency": 2,
+      "ItemSelector": {"context.$": "$.routing.context", "account_route.$": "$$.Map.Item.Value"},
+      "ItemProcessor": {
+        "ProcessorConfig": {"Mode": "INLINE"},
+        "StartAt": "Invoke Selected Account Orchestrator",
+        "States": {
+          "Invoke Selected Account Orchestrator": {
+            "Type": "Task",
+            "Resource": "${AgentFunctionArn}",
+            "Parameters": {
+              "role.$": "$.account_route.account_agent",
+              "expected_role.$": "$.account_route.account_agent",
+              "routing_stage": "account",
+              "request_id.$": "$.context.request_id",
+              "parent_id.$": "$.account_route.parent_event_id",
+              "context.$": "$.context"
+            },
+            "ResultPath": "$.account_agent",
+            "Next": "Validate Account Agent Routing",
+            "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Account Route Failure"}]
+          },
+          "Validate Account Agent Routing": {
+            "Type": "Task",
+            "Resource": "${CoordinatorFunctionArn}",
+            "Parameters": {"operation": "validate_account_route", "context.$": "$.context", "account_route.$": "$.account_route", "account_agent.$": "$.account_agent"},
+            "ResultPath": "$.strategy_plan",
+            "Next": "Route Selected Specialized Agents",
+            "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Account Route Failure"}]
+          },
+          "Route Selected Specialized Agents": {
+            "Type": "Map",
+            "ItemsPath": "$.strategy_plan.strategy_routes",
+            "MaxConcurrency": 2,
+            "ItemSelector": {
+              "context.$": "$.context",
+              "account_route.$": "$.account_route",
+              "account_agent.$": "$.account_agent",
+              "strategy_route.$": "$$.Map.Item.Value"
+            },
+            "ItemProcessor": {
+              "ProcessorConfig": {"Mode": "INLINE"},
+              "StartAt": "Invoke Selected Specialized Agent",
+              "States": {
+                "Invoke Selected Specialized Agent": {
+                  "Type": "Task",
+                  "Resource": "${AgentFunctionArn}",
+                  "Parameters": {
+                    "role.$": "$.strategy_route.agent",
+                    "expected_role.$": "$.strategy_route.agent",
+                    "routing_stage": "strategy",
+                    "parent_account_role.$": "$.account_route.account_agent",
+                    "request_id.$": "$.context.request_id",
+                    "parent_id.$": "$.strategy_route.parent_event_id",
+                    "context.$": "$.context"
+                  },
+                  "ResultPath": "$.strategy_agent",
+                  "Next": "Validate Specialized Tool Routing",
+                  "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Specialized Agent Failure"}]
+                },
+                "Validate Specialized Tool Routing": {
+                  "Type": "Task",
+                  "Resource": "${CoordinatorFunctionArn}",
+                  "Parameters": {"operation": "validate_strategy_route", "context.$": "$.context", "account_route.$": "$.account_route", "strategy_route.$": "$.strategy_route", "strategy_agent.$": "$.strategy_agent"},
+                  "ResultPath": "$.tool_plan",
+                  "Next": "Route Selected Authorized Tools",
+                  "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Specialized Agent Failure"}]
+                },
+                "Route Selected Authorized Tools": {
+                  "Type": "Map",
+                  "ItemsPath": "$.tool_plan.tool_routes",
+                  "MaxConcurrency": 2,
+                  "ItemSelector": {"request_id.$": "$.context.request_id", "tool_payload.$": "$.context.tool_payload", "tool_route.$": "$$.Map.Item.Value"},
+                  "ItemProcessor": {
+                    "ProcessorConfig": {"Mode": "INLINE"},
+                    "StartAt": "Select Authorized Tool Dispatcher",
+                    "States": {
+                      "Select Authorized Tool Dispatcher": {
+                        "Type": "Choice",
+                        "Choices": [
+                          {"Variable": "$.tool_route.operation", "StringEquals": "analyze_holdings_exposure", "Next": "Invoke Authorized Financial Tool"},
+                          {"Variable": "$.tool_route.operation", "StringEquals": "market_snapshot", "Next": "Invoke Authorized Financial Tool"},
+                          {"Variable": "$.tool_route.operation", "StringEquals": "simulate_account_purchase", "Next": "Invoke Authorized Financial Tool"},
+                          {"Variable": "$.tool_route.operation", "StringEquals": "research_news", "Next": "Invoke Authorized Research Boundary"}
+                        ],
+                        "Default": "Reject Unauthorized Tool Route"
+                      },
+                      "Invoke Authorized Financial Tool": {
+                        "Type": "Task",
+                        "Resource": "${FinancialToolsFunctionArn}",
+                        "Parameters": {
+                          "operation.$": "$.tool_route.operation",
+                          "analysis_id.$": "$.tool_payload.analysis_id",
+                          "accounts.$": "$.tool_payload.accounts",
+                          "target_ticker.$": "$.tool_payload.target_ticker",
+                          "account_id.$": "$.tool_route.account_id",
+                          "amount.$": "$.tool_payload.amount",
+                          "currency.$": "$.tool_payload.currency",
+                          "start_date.$": "$.tool_payload.start_date",
+                          "end_date.$": "$.tool_payload.end_date",
+                          "etf_constituents.$": "$.tool_payload.etf_constituents",
+                          "agent.$": "$.tool_route.agent",
+                          "parent_event_id.$": "$.tool_route.parent_event_id",
+                          "routing_authorization": {"agent.$": "$.tool_route.agent", "operation.$": "$.tool_route.operation", "delegation_id.$": "$.tool_route.delegation_id"}
+                        },
+                        "End": true,
+                        "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Authorized Tool Failure"}]
+                      },
+                      "Invoke Authorized Research Boundary": {
+                        "Type": "Task",
+                        "Resource": "${CoordinatorFunctionArn}",
+                        "Parameters": {"operation": "research_unavailable", "request_id.$": "$.request_id", "ticker.$": "$.tool_payload.target_ticker", "account_id.$": "$.tool_route.account_id", "agent.$": "$.tool_route.agent", "parent_event_id.$": "$.tool_route.parent_event_id"},
+                        "End": true,
+                        "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.dispatch_error", "Next": "Record Authorized Tool Failure"}]
+                      },
+                      "Record Authorized Tool Failure": {
+                        "Type": "Task",
+                        "Resource": "${CoordinatorFunctionArn}",
+                        "Parameters": {"operation": "record_tool_failure", "request_id.$": "$.request_id", "tool_route.$": "$.tool_route", "dispatch_error.$": "$.dispatch_error"},
+                        "End": true
+                      },
+                      "Reject Unauthorized Tool Route": {"Type": "Fail", "Error": "UnauthorizedToolRoute", "Cause": "Validated route did not match a fixed authorized dispatcher"}
+                    }
+                  },
+                  "ResultPath": "$.tool_results",
+                  "Next": "Synthesize Specialized Agent"
+                },
+                "Synthesize Specialized Agent": {
+                  "Type": "Task",
+                  "Resource": "${CoordinatorFunctionArn}",
+                  "Parameters": {"operation": "synthesize_strategy", "strategy_route.$": "$.strategy_route", "strategy_agent.$": "$.strategy_agent", "tool_plan.$": "$.tool_plan", "tool_results.$": "$.tool_results"},
+                  "End": true
+                },
+                "Record Specialized Agent Failure": {
+                  "Type": "Task",
+                  "Resource": "${CoordinatorFunctionArn}",
+                  "Parameters": {"operation": "record_strategy_failure", "request_id.$": "$.context.request_id", "strategy_route.$": "$.strategy_route", "dispatch_error.$": "$.dispatch_error"},
+                  "End": true
+                }
+              }
+            },
+            "ResultPath": "$.strategy_runs",
+            "Next": "Synthesize Selected Account"
+          },
+          "Synthesize Selected Account": {
+            "Type": "Task",
+            "Resource": "${CoordinatorFunctionArn}",
+            "Parameters": {"operation": "synthesize_account", "context.$": "$.context", "account_route.$": "$.account_route", "account_agent.$": "$.account_agent", "strategy_plan.$": "$.strategy_plan", "strategy_runs.$": "$.strategy_runs"},
+            "End": true
+          },
+          "Record Account Route Failure": {
+            "Type": "Task",
+            "Resource": "${CoordinatorFunctionArn}",
+            "Parameters": {"operation": "record_account_failure", "request_id.$": "$.context.request_id", "account_route.$": "$.account_route", "dispatch_error.$": "$.dispatch_error"},
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.account_branches",
+      "Next": "Global Deterministic Governance"
+    },
+    "Global Deterministic Governance": {
+      "Type": "Task",
+      "Resource": "${CoordinatorFunctionArn}",
+      "Parameters": {"operation": "aggregate", "context.$": "$.routing.context", "global_agent.$": "$.routing.global_agent", "branches.$": "$.account_branches", "delegations.$": "$.routing.delegations", "trace.$": "$.routing.trace"},
+      "ResultPath": "$.aggregation",
+      "Next": "Global Explainability Synthesis"
+    },
+    "Global Explainability Synthesis": {
+      "Type": "Task",
+      "Resource": "${AgentFunctionArn}",
+      "Parameters": {"role": "explainability_agent", "aggregation.$": "$.aggregation"},
+      "ResultPath": "$.explanation",
+      "Next": "Finalize Evidence Response"
+    },
+    "Finalize Evidence Response": {
+      "Type": "Task",
+      "Resource": "${CoordinatorFunctionArn}",
+      "Parameters": {"operation": "finalize", "aggregation.$": "$.aggregation", "explanation.$": "$.explanation"},
+      "End": true
+    }
+  }
+}

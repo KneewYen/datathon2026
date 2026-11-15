@@ -10,45 +10,67 @@ verified evidence.
 
 > Simulation only. Fictional portfolios. Not financial advice. No real trades.
 
-## Demo scenario
+## Flagship demo scenario
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
-The reviewed starter data produces a deterministic historical result: annualized
-volatility falls from 18.48% to 13.71%, maximum drawdown improves from -19.72% to
--15.53%, and historical annualized return falls from 30.80% to 27.42%. The lower
-measured risk therefore comes with a historical return trade-off. These figures
-are observations from the stated 2023-11-13 through 2026-11-12 window, not forecasts.
+The workflow uses a versioned fictional investor with populated TFSA and RRSP
+holdings. It detects existing direct NVIDIA exposure plus reviewed QQQ/SPY
+look-through, simulates the purchase independently in each account, compares cash,
+concentration, volatility, and drawdown, and preserves disagreement between the
+account agents. The older growth-to-dividend scenario remains available from the
+dashboard as a secondary regression demo.
 
 ## Architecture
 
 ```text
-Next.js dashboard → FastAPI → Global Orchestrator
-                                ├─ TFSA / RRSP Account Agent
-                                │    └─ Growth / Dividend / Momentum /
-                                │       Capital Preservation Strategy Agents
-                                │          └─ AWS Lambda → versioned Amazon S3 data
-                                ├─ deterministic Governance Agent
-                                └─ Explainability Agent → Amazon Bedrock Converse API
+Next.js dashboard → FastAPI on Lambda → AWS Step Functions Standard
+                                         ├─ Global AI Orchestrator (Nova Lite)
+                                         │    └─ validated account route Map
+                                         ├─ selected TFSA/RRSP AI Orchestrators
+                                         │    └─ validated specialist route Map
+                                         ├─ selected strategy agents (Nova Lite)
+                                         │    └─ fixed authorized-tool Choice + Map
+                                         ├─ deterministic Lambda tools → versioned S3
+                                         ├─ deterministic governance
+                                         └─ Explainability Agent → Nova Lite
 
-AWS Lambda + FastAPI expose correlated execution details to CloudWatch and the UI.
+Step Functions execution history and CloudWatch Lambda logs expose correlated
+execution details to the API and the live dashboard.
 ```
 
-The execution trace makes delegation observable. Strategy and language-model
-agents cannot create financial values; only the deterministic Lambda does so.
+Model output never supplies an ARN or unchecked AWS operation. Three deterministic
+routing gates validate account, specialist, and tool names against static allowlists;
+nested Step Functions Maps execute only selected routes. Mandatory exposure and
+purchase-risk tools are added by an explicit safety policy when omitted, and the
+persisted delegation ledger distinguishes model choices, policy choices, skipped
+capabilities, actual status, and evidence IDs. Language-model agents cannot create
+financial values; only the deterministic Lambda does so.
 
 ## Current status
 
-- Local vertical slice, agent hierarchy, deterministic engine, dashboard, IaC,
-  manifest generation, CI, and local tests are implemented.
-- AWS SAM defines a private encrypted/versioned bucket, bounded calculation
-  Lambda, CloudWatch log group, and one unnamed least-privilege Lambda execution
-  role for the restricted workshop.
+- The cross-account NVIDIA vertical slice, real agent hierarchy, deterministic
+  engine, dashboard, IaC, manifest generation, CI, and local tests are implemented.
+- AWS SAM now defines the complete AWS-hosted path: HTTP API, FastAPI Lambda,
+  Standard Step Functions workflow, constrained Bedrock agent Lambda,
+  deterministic coordinator and financial-tool Lambdas, versioned S3, scoped IAM,
+  Cognito JWT authentication, bounded API throttling, and fourteen-day CloudWatch
+  log groups.
+- Account, specialist, and tool execution is dynamic: validated model selections
+  supply Map items, while fixed Choice states and runtime allowlists prevent model
+  output from becoming an arbitrary Lambda ARN or operation.
 - The reviewed AWS stack is deployed in `us-east-1`: private versioned S3 storage,
   deterministic Lambda, least-privilege execution role, and CloudWatch log group.
   The six-file dataset and manifest are uploaded with verified SHA-256 checksums;
   one bounded Lambda acceptance run matched the local engine exactly, while
-  Bedrock has not yet been invoked.
+  Bedrock has not yet been invoked. The newly defined orchestration resources and
+  investment operations are locally built and validated but are not deployed;
+  they require a separately reviewed and approved CloudFormation change set.
+- The first orchestration change set, `samcli-deploy1794769828`, was rejected and
+  must not be recreated or executed: review exposed a deployed market/headline
+  compatibility regression. CloudFormation no longer lists that change set.
+  This branch now reconciles the recovered deployed operation package with the new
+  NVIDIA calculations, but no replacement change set has been authorized.
 - Advanced VaR/CVaR, broader momentum analytics, and monitoring dashboards remain
   intentionally deferred until the primary scenario is proven end to end.
 
@@ -86,9 +108,9 @@ npm run dev
 The API runs at `http://localhost:8000`; the landing page runs at
 `http://localhost:3000`, and the demo workspace is at
 `http://localhost:3000/dashboard`. Selecting a persona on the landing page and
-choosing **Analyze with live AWS** opens the workspace and starts the approved
-TFSA comparison. The workspace deliberately shows no substitute metrics when
-live AWS is unavailable.
+choosing **Open analysis workspace** opens the app and starts the flagship
+cross-account comparison. The workspace deliberately shows no substitute metrics
+when the new Lambda operations or Bedrock are not yet deployed and approved.
 
 FastAPI loads `backend/.env` for local development without overriding variables
 already supplied by the shell or deployment environment.
@@ -106,6 +128,23 @@ Backend configuration is documented in `backend/.env.example`:
 | `S3_BUCKET` | CloudFormation `DataBucketName` output | Versioned dataset bucket used by deployment helpers |
 | `DATA_PREFIX` | `starter/v1` | Approved dataset prefix reported by the readiness endpoint |
 | `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call FastAPI |
+| `ORCHESTRATION_MODE` | `local` locally; `step-functions` in AWS | Selects in-process development or AWS-owned execution |
+| `INVESTMENT_STATE_MACHINE_ARN` | CloudFormation `InvestmentStateMachineArn` output | Standard workflow started and polled by FastAPI |
+
+The AWS demo API uses a Cognito JWT authorizer. The browser uses OAuth Authorization
+Code with PKCE and a public app client, so there is no client secret to embed. After
+an approved deployment, configure these non-secret frontend values from stack outputs:
+
+| Frontend variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_COGNITO_DOMAIN` | CloudFormation `DemoAuthDomain` output |
+| `NEXT_PUBLIC_COGNITO_CLIENT_ID` | `DemoUserPoolClientId` output |
+| `NEXT_PUBLIC_COGNITO_REDIRECT_URI` | Exact approved callback; locally `http://localhost:3000/auth/callback` |
+| `NEXT_PUBLIC_COGNITO_LOGOUT_URI` | Exact approved logout URL; locally `http://localhost:3000` |
+
+Leave these blank for local FastAPI development. Access tokens are stored only in
+browser session storage and expire after sixty minutes. Temporary AWS credentials
+and reusable secrets never enter the frontend bundle.
 
 The frontend uses one API base URL, `NEXT_PUBLIC_API_URL`, defaulting to
 `http://localhost:8000` in `frontend/.env.example`. The app workspace uses that
@@ -119,7 +158,7 @@ named profile using Workshop Studio's secure temporary-credential workflow.
 ```bash
 cd backend && .venv/bin/pytest -m "not integration" -q
 python3 -m unittest discover -s lambda/tests -v
-cd frontend && npm run lint && npm run build
+cd frontend && npm test && npm run lint && npm run build -- --webpack
 cd .. && SAM_CLI_TELEMETRY=0 sam validate --lint --template-file infra/template.yaml
 ```
 
@@ -146,6 +185,8 @@ BEDROCK_MODEL_ID=us.amazon.nova-lite-v1:0 \
 - Lambda verifies the S3 dataset ID, prefix, file sizes, and SHA-256 checksums
   against the committed manifest before calculating.
 - S3 object version IDs or ETags are returned as metric provenance.
+- Direct holdings and reviewed QQQ/SPY constituent weights are kept distinct;
+  the ETF fixture records issuer URLs, as-of dates, and its offline limitation.
 - Duplicate dates, non-positive prices/FX, missing assets, insufficient common
   history, invalid weights, and impossible shifts fail closed.
 - Macro reference dates are not used in backtests until publication-date handling
@@ -163,6 +204,12 @@ The immutable local manifest is
 - `scripts/` — manifest and S3 upload helpers
 - `docs/` — plan, technical documentation, one-pager, demo script, and decisions
 - `hackathon_info/` — challenge documents and reviewed starter dataset
+
+The fictional account fixture is `backend/app/fixtures/investor_v1.json`. The
+offline ETF look-through fixture is `backend/app/fixtures/etf_constituents_v1.json`;
+it is source-backed but intentionally not presented as live issuer data. Live news
+is represented by a provider interface and reports `unavailable` until an approved
+provider is configured—no news story is synthesized as a substitute.
 
 The original project Wiki remains available for historical context, while the
 in-repository plan is authoritative for the approved implementation architecture.

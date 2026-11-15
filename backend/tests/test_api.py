@@ -1,16 +1,64 @@
 from __future__ import annotations
 
+import importlib
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app import store
 from app.services.errors import ExternalServiceError
+from app.domain.models import WorkflowStartResponse
 
 
 def test_health_contract() -> None:
     response = TestClient(app).get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "portfolioguard-api"}
+
+
+def test_lambda_handler_strips_configured_api_gateway_stage(monkeypatch) -> None:
+    monkeypatch.setenv("API_GATEWAY_BASE_PATH", "/workshop")
+    import app.lambda_handler as lambda_handler
+
+    lambda_handler = importlib.reload(lambda_handler)
+    response = lambda_handler.handler(
+        {
+            "version": "2.0",
+            "routeKey": "GET /{proxy+}",
+            "rawPath": "/workshop/health",
+            "rawQueryString": "",
+            "headers": {"host": "example.execute-api.us-east-1.amazonaws.com"},
+            "requestContext": {
+                "accountId": "010928180049",
+                "apiId": "v1g9tljo4k",
+                "domainName": "example.execute-api.us-east-1.amazonaws.com",
+                "domainPrefix": "example",
+                "http": {
+                    "method": "GET",
+                    "path": "/workshop/health",
+                    "protocol": "HTTP/1.1",
+                    "sourceIp": "127.0.0.1",
+                    "userAgent": "test",
+                },
+                "requestId": "test-request",
+                "routeKey": "GET /{proxy+}",
+                "stage": "workshop",
+                "time": "15/Nov/2026:22:00:00 +0000",
+                "timeEpoch": 1794780000000,
+            },
+            "isBase64Encoded": False,
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == {
+        "status": "ok",
+        "service": "portfolioguard-api",
+    }
+    monkeypatch.delenv("API_GATEWAY_BASE_PATH")
+    importlib.reload(lambda_handler)
 
 
 def test_local_dashboard_origins_are_allowed() -> None:
@@ -26,6 +74,47 @@ def test_local_dashboard_origins_are_allowed() -> None:
         )
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == origin
+
+
+def test_investment_preflight_allows_auth_headers_without_invoking_handler(
+    monkeypatch,
+) -> None:
+    def fail(_request):
+        raise AssertionError("investment analysis handler must not run for preflight")
+
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr("app.api.chat.start_execution", fail)
+
+    response = TestClient(app).options(
+        "/api/investment-analysis",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert 200 <= response.status_code < 300
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    allowed_headers = {
+        header.strip().lower()
+        for header in response.headers["access-control-allow-headers"].split(",")
+    }
+    assert {"authorization", "content-type"} <= allowed_headers
+
+
+def test_investment_preflight_rejects_disallowed_origin() -> None:
+    response = TestClient(app).options(
+        "/api/investment-analysis",
+        headers={
+            "Origin": "https://untrusted.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
 
 
 def test_analysis_validation_rejects_invalid_weight_total() -> None:
@@ -73,6 +162,73 @@ def test_analysis_maps_live_aws_failure_to_bad_gateway(monkeypatch) -> None:
 
     assert response.status_code == 502
     assert response.json()["detail"] == "financial Lambda failed: unavailable"
+
+
+def test_aws_hosted_api_does_not_expose_provider_error_details(monkeypatch) -> None:
+    def fail(_request):
+        raise ExternalServiceError(
+            "AccessDenied on arn:aws:states:us-east-1:010928180049:stateMachine:internal"
+        )
+
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr("app.api.chat.start_execution", fail)
+
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Should I buy $5,000 CAD of NVIDIA?"},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Investment workflow is temporarily unavailable"
+    assert "arn:aws" not in response.text
+
+
+def test_investment_question_length_is_bounded() -> None:
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "x" * 501},
+    )
+
+    assert response.status_code == 422
+
+
+def test_investment_analysis_returns_typed_clarification_without_calling_aws() -> None:
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Which of my accounts should I use?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "clarification_required"
+    assert payload["clarification"] == "Which security or ticker would you like to analyze?"
+    assert payload["intent"] is None
+    assert payload["research"]["provider"] == "not-invoked"
+    assert payload["trace"][0]["status"] == "blocked"
+
+
+def test_investment_analysis_starts_step_functions_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr(
+        "app.api.chat.start_execution",
+        lambda _request: WorkflowStartResponse(
+            request_id="2f41ce18-57d5-4921-a4d1-796c68187444",
+            execution_arn=(
+                "arn:aws:states:us-east-1:010928180049:execution:"
+                "portfolioguard-workshop-investment-analysis:"
+                "2f41ce18-57d5-4921-a4d1-796c68187444"
+            ),
+        ),
+    )
+
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Should I buy $5,000 CAD of NVIDIA?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["mode"] == "aws_step_functions"
+    assert response.json()["status"] == "RUNNING"
 
 
 def test_meta_reports_configuration_without_calling_aws(monkeypatch) -> None:

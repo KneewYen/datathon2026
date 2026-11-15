@@ -2,13 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AllocationComparison } from "@/components/AllocationComparison";
-import { DEMO_QUESTION } from "@/lib/api";
+import { INVESTMENT_QUESTION } from "@/lib/api";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
-
-
-const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
-const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
 
 
 export default function Home() {
@@ -20,7 +15,7 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <span className="eyebrow">Fictional portfolio decision support</span>
+          <span className="eyebrow">Cross-account investment intelligence</span>
           <h1>See the trade-off<br />before the allocation changes.</h1>
           <p>
             PortfolioGuard coordinates account and strategy agents, calculates every metric
@@ -55,22 +50,25 @@ export default function Home() {
         <div className="workspace-kicker">
           <span>01</span>
           <p>Focused scenario</p>
-          <b>TFSA</b>
+          <b>TFSA + RRSP</b>
         </div>
         <div className="question-row">
-          <h2>“{DEMO_QUESTION}”</h2>
+          <h2>“{INVESTMENT_QUESTION}”</h2>
           <Link
             className="analyze-button"
             href={{ pathname: "/dashboard", query: { persona: personaId, run: "1" } }}
           >
-            <span>Analyze with live AWS</span>
+            <span>Open analysis workspace</span>
             <b>↗</b>
           </Link>
         </div>
-        <AllocationComparison
-          current={CURRENT}
-          proposed={PROPOSED}
-        />
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-5 py-5">
+          <p className="m-0 max-w-4xl text-sm leading-relaxed text-slate-600">
+            The workspace reveals existing direct NVIDIA holdings, ETF look-through exposure,
+            account-specific cash and risk effects, suitability conflicts, and every delegated
+            agent and deterministic tool call used to reach the answer.
+          </p>
+        </div>
         <div className="method-strip">
           <span><b>S3</b> Versioned market data</span>
           <span><b>λ</b> Deterministic calculations</span>
@@ -82,9 +80,9 @@ export default function Home() {
       <section className="preflight">
         <div><span>02</span><h2>Continue in the demo workspace</h2></div>
         <p>
-          The app workspace runs the approved S3-backed Lambda calculation, asks Bedrock for a
-          grounded explanation, and shows the observable agent trace. No substitute live result
-          is rendered on this landing page.
+          The app workspace runs the S3-backed Lambda calculations, compares the fictional TFSA
+          and RRSP, asks Bedrock for a grounded explanation, and renders the actual execution
+          trace. No substitute cloud result is rendered on this landing page.
         </p>
       </section>
 

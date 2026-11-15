@@ -1,0 +1,27 @@
+{
+  "fixture_version": "etf-lookthrough-v1",
+  "retrieved_at": "2026-11-15T00:00:00-05:00",
+  "offline_fixture": true,
+  "holdings": [
+    {
+      "etf_ticker": "QQQ",
+      "constituent_ticker": "NVDA",
+      "weight": 0.0802,
+      "as_of": "2026-11-03",
+      "source_title": "Holdings & Sector Allocations of Invesco QQQ",
+      "publisher": "Invesco",
+      "url": "https://www.invesco.com/qqq-etf/en/about.html",
+      "limitation": "Issuer holdings are subject to change; this reviewed offline fixture is not refreshed automatically."
+    },
+    {
+      "etf_ticker": "SPY",
+      "constituent_ticker": "NVDA",
+      "weight": 0.0778,
+      "as_of": "2026-10-22",
+      "source_title": "State Street SPDR S&P 500 ETF Trust holdings",
+      "publisher": "State Street Global Advisors",
+      "url": "https://www.ssga.com/us/en/individual/etfs/state-street-spdr-sp-500-etf-trust-spy",
+      "limitation": "Issuer holdings are subject to change; this reviewed offline fixture is not refreshed automatically."
+    }
+  ]
+}

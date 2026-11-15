@@ -7,9 +7,9 @@ investors. It is a decision-support prototype, not a trading system, portfolio
 manager, tax calculator, or source of personalized financial advice. No component
 can place or simulate the execution of a real order.
 
-The first end-to-end question is:
+The flagship end-to-end question is:
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+> I am considering buying $5,000 CAD of NVIDIA. Which account is a better fit, my TFSA or RRSP?
 
 The system answers with historical observations, explicit assumptions, data
 provenance, governance findings, and an observable agent trace.
@@ -19,21 +19,68 @@ provenance, governance findings, and an observable agent trace.
 ```text
 Browser
   └─ Next.js dashboard
-       └─ POST /api/analysis
-            └─ FastAPI
-                 └─ Global Orchestrator
-                      ├─ TFSA or RRSP Account Agent
-                      │    ├─ source Strategy Agent
-                      │    └─ destination Strategy Agent
-                      ├─ AWS Lambda financial tool
+       └─ POST /api/investment-analysis
+            └─ Cognito JWT → API Gateway HTTP API → FastAPI Lambda
+                 └─ AWS Step Functions Standard
+                      ├─ Global Orchestrator → Nova Lite
+                      ├─ validated account-route Map
+                      ├─ selected Account Orchestrators → Nova Lite
+                      │    └─ validated specialist-route Map
+                      ├─ selected Strategy Agents → Nova Lite
+                      │    └─ validated authorized-tool Map + fixed Choice
+                      ├─ selected deterministic Financial Tools Lambda calls
                       │    └─ versioned Amazon S3 dataset
-                      ├─ deterministic Governance Agent
-                      └─ Explainability Agent
-                           └─ Amazon Bedrock Converse API
+                      ├─ deterministic coordinator + governance Lambda
+                      └─ Explainability Agent → Nova Lite
 
 CloudWatch Logs receives structured Lambda lifecycle events with analysis and AWS
-request identifiers. The API response exposes the same execution lineage to the UI.
+request identifiers. Step Functions retains the actual state-transition history;
+the API polls it and exposes the same execution lineage to the UI.
 ```
+
+The hierarchy is implemented as executable AWS states, not decorative labels.
+Global model output is validated into account Map items; each invoked account model
+is validated into specialist Map items; each invoked specialist model is validated
+into tool Map items. A fixed Choice state maps the four known operations to either
+the financial Lambda or the research boundary. A model cannot provide a Lambda ARN
+or arbitrary operation. Nonselected Map items do not exist and therefore do not
+execute. The API returns a start response immediately and the dashboard polls the
+Standard workflow until it returns a schema-validated final result.
+
+PortfolioGuard uses direct Bedrock Runtime `Converse` calls with the system-defined
+`us.amazon.nova-lite-v1:0` inference profile. It does not depend on Bedrock Agents
+Classic. Every named agent has an allow-list of possible delegates and operations;
+unsupported selections, numeric language-model claims, malformed JSON, or unknown
+evidence IDs fail closed.
+
+Every routing gate emits persisted delegation records containing the decision
+maker, target, model-versus-policy source, rationale, parent event ID, selection,
+actual invocation status, and evidence IDs. The dashboard renders those records
+alongside actual execution events. Mandatory holdings exposure and purchase
+simulation cannot be silently omitted: deterministic policy assigns each missing
+operation to an account-permitted specialist and labels the assignment
+`mandatory_policy`. Failed mandatory tools produce a partial account result and no
+missing evidence is invented.
+
+### Demo authentication and bounded access
+
+The AWS endpoint uses API Gateway's native JWT authorizer with a Cognito issuer.
+The Next.js client performs Authorization Code + PKCE against a public Cognito app
+client (`GenerateSecret: false`). The PKCE verifier and access token live only in
+browser session storage; no reusable secret or AWS credential is compiled into the
+frontend. The access token expires after sixty minutes.
+
+Local development remains simple: when the four Cognito public configuration
+values are absent, the frontend calls local FastAPI without an authorization
+header. In the AWS demo configuration, the dashboard is gated until sign-in and
+every API request carries the access token. API Gateway validates issuer and
+audience before invoking Lambda.
+
+API stage throttling is one request per second with burst two. The API Lambda has
+reserved concurrency two, the financial Lambda retains its deployed concurrency
+five, and the Standard workflow has a 180-second execution timeout. Pydantic limits
+question length and investor identifiers, while production error responses do not
+return provider exception strings or internal ARNs.
 
 Production code calls real AWS SDK clients. Missing AWS configuration or failed
 cloud calls return a clear service error. The dashboard does not replace a failed
@@ -43,9 +90,12 @@ AWS response with locally fabricated metrics.
 
 ### Global Orchestrator
 
-The orchestrator validates typed input, resolves the persona and account, records
-delegation, invokes the deterministic tool exactly once, applies governance, and
-passes a closed evidence packet to explainability. It does not calculate metrics.
+The deterministic preparation step parses typed purchase intent and establishes
+candidate account scope. The Global AI Orchestrator selects account agents through
+Nova Lite. Explicit user account scope is a mandatory boundary; generic questions
+allow the model to choose one or more candidate accounts. A routing validator
+records every candidate and passes only selected/enforced account routes to the
+Step Functions Map. The orchestrator does not calculate financial values.
 
 ### Account agents
 
@@ -54,8 +104,26 @@ passes a closed evidence packet to explainability. It does not calculate metrics
 - **RRSP Account Agent:** coordinates the fictional RRSP comparison and discloses
   that deductions, withdrawal taxation, and personal tax outcomes are out of scope.
 
-Only the source and destination strategy agents are invoked for a shift. This keeps
-delegation purposeful instead of calling decorative agents.
+TFSA may delegate to Growth and Momentum; RRSP may delegate to Dividend and Capital
+Preservation. Only model-selected specialists execute unless deterministic safety
+coverage requires a missing specialist. Each specialist requests a subset of its
+runtime-enforced tool allowlist. Nonselected specialists and tools are persisted as
+`not_invoked` rather than inferred from a static diagram.
+
+### Deterministic investment tools
+
+- `analyze_holdings_exposure` values direct holdings and covered QQQ/SPY indirect
+  NVIDIA exposure independently.
+- `market_snapshot` reports the latest dataset close converted to CAD plus trailing
+  historical returns, volatility, and drawdown; it is not a real-time quote.
+- `simulate_account_purchase` compares each account before and after a hypothetical
+  fractional-share purchase without changing total portfolio value or executing an order.
+  It also reports target/portfolio correlation and the direct target position's
+  covariance-based contribution to portfolio return variance when history is sufficient.
+
+The ETF fixture is offline, versioned, and records issuer URL and as-of date. A
+`ResearchProvider` interface separates live news/OSINT from financial calculations;
+the default provider returns an explicit unavailable result and never invents news.
 
 ### Strategy agents
 
@@ -187,22 +255,39 @@ conservative lag policy are implemented.
 
 ## 7. AWS implementation
 
-The deployed SAM stack defines:
+The currently deployed stack contains:
 
 - private, encrypted, versioned S3 storage with blocked public access;
 - ARM64 Python Lambda with bounded timeout, memory, and reserved concurrency;
 - Lambda read-only access to the dataset bucket;
 - a 14-day CloudWatch Logs group;
 - one unnamed least-privilege Lambda execution role with S3 reads limited to the
-  dataset prefix and CloudWatch writes limited to the function log group;
-- review-only IAM policy documents for exact backend Bedrock/Lambda access.
+  dataset prefix and CloudWatch writes limited to the function log group.
+
+The locally validated, not-yet-deployed SAM update adds:
+
+- a Standard Step Functions state machine with parallel account branches;
+- constrained Bedrock agent, deterministic coordinator, and FastAPI Lambda functions;
+- API Gateway HTTP API for the dashboard start/status contract;
+- four additional unnamed least-privilege roles for the API, Step Functions,
+  coordinator, and Bedrock agent runtime;
+- three additional fourteen-day Lambda log groups.
+- Cognito user pool, public PKCE client, managed-login domain, JWT authorizer, and
+  API throttling.
+
+The update also reconciles the exact deployed financial-tools dispatcher. The
+market/headline operations—including the split `market_agent`, `classifier_agent`,
+and `investor_position` contracts—all six dataset/model environment variables,
+two-key scored-news write boundary, 120-second timeout, concurrency five, and
+inference-profile permissions are preserved alongside the new investment
+calculations.
 
 The workshop configuration is fixed to `us-east-1` and the system-defined
 `us.amazon.nova-lite-v1:0` profile. IAM must allow its profile ARN plus Nova Lite in
 `us-east-1`, `us-east-2`, and `us-west-2`; organization controls must also permit
 all three destinations. Read-only role inventory found no suitable existing
 application execution role. IAM simulation confirms that the participant role can
-create, configure, pass, and delete the unnamed role in the stack, so deployment
+create, configure, pass, and delete the unnamed roles in the template, so deployment
 uses `CAPABILITY_IAM` and remains gated by change-set review and explicit approval.
 
 The initial change set was reviewed and separately approved before execution. The
@@ -211,7 +296,8 @@ and independently verified against S3-reported SHA-256 checksums and version IDs
 The Lambda has no event source, resource policy, function URL, or async destination.
 One separately approved live invocation read the expected S3 object versions and
 matched every local metric and all 93 performance points exactly. Bedrock testing
-remains separately approval-gated.
+remains separately approval-gated. Read-only inspection on 2026-11-15 confirmed
+that the account currently has no PortfolioGuard state machine or HTTP API.
 
 ## 8. Security and failure behavior
 
@@ -238,6 +324,8 @@ Local CI covers:
 - Bedrock evidence and numeric-claim rejection;
 - allocation invariants, duplicate-date safeguards, and golden financial results;
 - frontend lint and production build.
+- AWS workflow-definition, named-agent capability, status-history, and local
+  state-machine-equivalent tests.
 
 The AWS acceptance test is opt-in and cannot pass through mocks. It must observe a
 real Lambda request ID, versioned S3 sources, the configured Bedrock model ID, and a

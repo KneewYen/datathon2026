@@ -20,6 +20,7 @@ STRATEGY_AGENTS: Dict[str, Type[Agent]] = {
 
 class AccountAgent(Agent):
     account_type = ""
+    investment_strategy_names: tuple[str, ...] = ()
 
     def relevant_strategies(self, request: AnalysisRequest) -> Iterable[str]:
         return dict.fromkeys(
@@ -34,3 +35,19 @@ class AccountAgent(Agent):
             "shift": request.shift.model_dump(),
         }
         return [STRATEGY_AGENTS[name]().plan(context) for name in self.relevant_strategies(request)]
+
+    def delegate_investment(
+        self, account: dict, question: str, ticker: str
+    ) -> list[AgentFinding]:
+        context = {
+            "workflow": "investment_purchase",
+            "account": account,
+            "account_type": account["type"],
+            "question": question,
+            "ticker": ticker,
+        }
+        return [
+            STRATEGY_AGENTS[name]().plan(context)
+            for name in self.investment_strategy_names
+            if account["strategy_allocations"].get(name, 0) > 0
+        ]

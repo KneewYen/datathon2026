@@ -16,6 +16,7 @@ from typing import Dict, Iterable, List, Mapping, Tuple
 class PriceObservation:
     observation_date: date
     ticker: str
+    close_price: float
     adjusted_close: float
     currency: str
 
@@ -48,10 +49,11 @@ def dataset_from_csv_text(
         observation = PriceObservation(
             observation_date=date.fromisoformat(row["date"]),
             ticker=row["ticker"],
+            close_price=float(row["close"]),
             adjusted_close=float(row["adj_close"]),
             currency=row["currency"],
         )
-        if observation.adjusted_close <= 0:
+        if observation.adjusted_close <= 0 or observation.close_price <= 0:
             raise ValueError(
                 f"non-positive adjusted close for {observation.ticker} on {observation.observation_date}"
             )

@@ -48,7 +48,7 @@ def test_workshop_defaults_are_fixed_to_approved_region_and_model() -> None:
     )
 
 
-def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> None:
+def test_workshop_stack_creates_only_unnamed_scoped_execution_roles() -> None:
     template = load_template()
     resources = template["Resources"]
     iam_resources = [
@@ -56,7 +56,9 @@ def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> 
     ]
     role = resources["FinancialToolsExecutionRole"]
 
-    assert iam_resources == [role]
+    assert len(iam_resources) == 5
+    assert all(item["Type"] == "AWS::IAM::Role" for item in iam_resources)
+    assert all("RoleName" not in item["Properties"] for item in iam_resources)
     assert role["Type"] == "AWS::IAM::Role"
     assert "RoleName" not in role["Properties"]
     assert role["Properties"]["Policies"][0]["PolicyDocument"]["Statement"][0][
@@ -65,6 +67,130 @@ def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> 
     assert resources["FinancialToolsFunction"]["Properties"]["Role"] == {
         "GetAtt": "FinancialToolsExecutionRole.Arn"
     }
+    assert resources["InvestmentAnalysisStateMachine"]["Properties"]["Type"] == "STANDARD"
+    assert resources["WorkflowAgentFunction"]["Properties"]["Role"] == {
+        "GetAtt": "WorkflowAgentExecutionRole.Arn"
+    }
+    state_actions = resources["InvestmentWorkflowExecutionRole"]["Properties"][
+        "Policies"
+    ][0]["PolicyDocument"]["Statement"][0]["Action"]
+    assert state_actions == "lambda:InvokeFunction"
+
+
+def test_financial_lambda_preserves_deployed_market_contract() -> None:
+    template = load_template()
+    resources = template["Resources"]
+    function = resources["FinancialToolsFunction"]["Properties"]
+    role = resources["FinancialToolsExecutionRole"]["Properties"]
+    statements = role["Policies"][0]["PolicyDocument"]["Statement"]
+    variables = {
+        **template["Globals"]["Function"]["Environment"]["Variables"],
+        **function["Environment"]["Variables"],
+    }
+
+    assert function["Timeout"] == 120
+    assert function["ReservedConcurrentExecutions"] == 5
+    assert set(variables) == {
+        "DATA_BUCKET",
+        "DATA_PREFIX",
+        "DATASET_ID",
+        "MARKET_PREFIX",
+        "MARKET_DATASET_ID",
+        "BEDROCK_MODEL_ID",
+    }
+    assert {item["Sid"] for item in statements} == {
+        "ReadPortfolioGuardDataset",
+        "WritePortfolioGuardLambdaLogs",
+        "ReadSimulatedMarketData",
+        "WriteScoredHeadlinesOnly",
+        "InvokeNovaLiteInferenceProfile",
+        "InvokeNovaLiteDestinationModels",
+    }
+    write = next(item for item in statements if item["Sid"] == "WriteScoredHeadlinesOnly")
+    assert write["Action"] == "s3:PutObject"
+    assert len(write["Resource"]) == 2
+
+
+def test_bedrock_destination_permissions_require_the_approved_profile() -> None:
+    resources = load_template()["Resources"]
+    for role_name in (
+        "FinancialToolsExecutionRole",
+        "WorkflowAgentExecutionRole",
+        "BackendApiExecutionRole",
+    ):
+        statements = resources[role_name]["Properties"]["Policies"][0][
+            "PolicyDocument"
+        ]["Statement"]
+        destination = next(
+            item for item in statements if "Destination" in item.get("Sid", "")
+        )
+        assert destination["Action"] == "bedrock:InvokeModel"
+        assert destination["Condition"]["StringEquals"] == {
+            "bedrock:InferenceProfileArn": {
+                "Sub": "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
+            }
+        }
+
+
+def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
+    resources = load_template()["Resources"]
+    api = resources["BackendHttpApi"]["Properties"]
+    client = resources["DemoUserPoolClient"]["Properties"]
+    events = resources["BackendApiFunction"]["Properties"]["Events"]
+
+    assert api["Auth"]["DefaultAuthorizer"] == "CognitoJwtAuthorizer"
+    assert api["DefaultRouteSettings"] == {
+        "DetailedMetricsEnabled": False,
+        "ThrottlingBurstLimit": 2,
+        "ThrottlingRateLimit": 1,
+    }
+    assert api["CorsConfiguration"]["AllowOrigins"] == [{"Ref": "FrontendOrigin"}]
+    assert api["CorsConfiguration"]["AllowHeaders"] == [
+        "authorization",
+        "content-type",
+    ]
+    assert events["ApiProxy"]["Properties"]["Method"] == "ANY"
+    assert events["ApiCorsPreflight"]["Properties"] == {
+        "ApiId": {"Ref": "BackendHttpApi"},
+        "Path": "/{proxy+}",
+        "Method": "OPTIONS",
+        "Auth": {"Authorizer": "NONE"},
+    }
+    assert client["GenerateSecret"] is False
+    assert client["AllowedOAuthFlows"] == ["code"]
+    assert client["AllowedOAuthScopes"] == ["openid", "email"]
+    assert resources["DemoUserPool"]["Properties"]["AdminCreateUserConfig"] == {
+        "AllowAdminCreateUserOnly": True
+    }
+    assert resources["BackendApiFunction"]["Properties"]["Environment"]["Variables"][
+        "API_GATEWAY_BASE_PATH"
+    ] == {"Sub": "/${Environment}"}
+
+
+def test_backend_lambda_builds_exclude_the_test_tree() -> None:
+    resources = load_template()["Resources"]
+
+    for logical_id in (
+        "BackendApiFunction",
+        "WorkflowAgentFunction",
+        "WorkflowCoordinatorFunction",
+    ):
+        assert resources[logical_id]["Metadata"]["BuildMethod"] == "makefile"
+
+    makefile = (ROOT / "backend" / "Makefile").read_text()
+    assert "cp -R app" in makefile
+    assert "tests" not in makefile
+    assert "--platform manylinux2014_aarch64" in makefile
+    assert "--only-binary=:all:" in makefile
+    assert "-name __pycache__" in makefile
+    assert "-name '*.pyc'" in makefile
+
+
+def test_standard_workflow_has_a_bounded_execution_timeout() -> None:
+    definition = json.loads(
+        (ROOT / "infra" / "workflows" / "investment_analysis.asl.json").read_text()
+    )
+    assert definition["TimeoutSeconds"] == 180
 
 
 def test_bedrock_policy_lists_every_us_nova_lite_destination() -> None:

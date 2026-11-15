@@ -1,6 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { authConfigured, getAccessToken, logout } from "@/lib/auth";
 
 export function Header() {
+  const signedIn = useSyncExternalStore(
+    () => () => undefined,
+    () => authConfigured() && Boolean(getAccessToken()),
+    () => false,
+  );
+
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-[1760px] items-center justify-between px-4 py-3">
@@ -18,6 +28,11 @@ export function Header() {
           <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-300 sm:inline">
             Simulation
           </span>
+          {signedIn && (
+            <button className="text-sm text-link hover:underline" onClick={logout}>
+              Sign out
+            </button>
+          )}
           <Link
             href="/dashboard/profile"
             aria-label="Profile"
