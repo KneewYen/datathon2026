@@ -6,7 +6,27 @@ from app.main import app
 from app.services import sell_guard_service
 from app.services.errors import ExternalServiceError
 
-client = TestClient(app)
+class MarketClient(TestClient):
+    """The API keeps no market state, so the client sends ``live`` with each request, as the web app does."""
+
+    live = False
+
+    def get(self, url, **kw):
+        if self.live:
+            kw["params"] = {**(kw.get("params") or {}), "live": "true"}
+        return super().get(url, **kw)
+
+    def post(self, url, **kw):
+        if url == "/api/market/refresh":
+            self.live = True
+        elif url == "/api/market/reset":
+            self.live = False
+        elif self.live and kw.get("json") is not None:
+            kw["json"] = {**kw["json"], "live": True}
+        return super().post(url, **kw)
+
+
+client = MarketClient(app)
 
 
 class FakeBedrock:
@@ -35,11 +55,11 @@ def setup_function():
 
 def test_summary_is_deterministic_and_has_categories_and_peers():
     client.post("/api/market/refresh")
-    first = sell_guard_service.sentiment_summary("ENB.TO")
-    assert first == sell_guard_service.sentiment_summary("ENB.TO")
+    first = sell_guard_service.sentiment_summary("ENB.TO", live=True)
+    assert first == sell_guard_service.sentiment_summary("ENB.TO", live=True)
     assert first["mean_sentiment"] < -0.3
     assert "regulatory" in first["categories"]
-    assert sell_guard_service.sentiment_summary("QQQ")["peer_sentiment"] is not None
+    assert sell_guard_service.sentiment_summary("QQQ", live=True)["peer_sentiment"] is not None
 
 
 def test_unknown_ticker_is_rejected():

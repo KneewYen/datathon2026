@@ -73,6 +73,9 @@ export function Message({
         {d.trade_check && (
           <div className="mt-3 rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
             <TradeCheckBody check={d.trade_check} headlines={d.headlines} />
+            <p className="mt-2 text-[11px] text-slate-500">
+              {d.trade_check.computed_by === "aws-lambda" ? t("chat.computed.aws") : t("chat.computed.local")}
+            </p>
             {d.persona_fit && (
               <div className="mt-4 rounded-md bg-white p-3 ring-1 ring-slate-200">
                 <div className="text-xs font-semibold text-slate-700">{t("fit.title", { name: d.persona_fit.persona.name })}</div>

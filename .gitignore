@@ -27,3 +27,6 @@ backend/.runtime/
 
 # Datathon project specification file
 datathon_Project_Spec/
+
+# Build output
+.build/

@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda" / "financial_tools"))
 
-from sell_guard import decide, evaluate_sell, evaluate_trade, score_signals  # noqa: E402
+from sell_guard import decide, evaluate_sell, evaluate_trade, price_volume_signals, score_signals  # noqa: E402
 
 SIM = ROOT / "data" / "simulated"
 
@@ -105,6 +105,71 @@ class SellGuardTests(unittest.TestCase):
         self.assertEqual(decide("buy", -8.0, 0.0, 3.0, market)["verdict"], "dip_with_context")
         self.assertEqual(decide("buy", -1.0, 5.0, 3.0, hype)["verdict"], "chasing_risk")
         self.assertEqual(decide("sell", -1.0, 5.0, 3.0, hype)["verdict"], "no_signal")  # nothing to panic about
+
+    def test_risk_band_sets_how_big_a_move_counts(self) -> None:
+        market = {"fundamental": 0.0, "emotion": 1.0, "hype": 0.1}  # purely market-driven, so no bias can excuse it
+        hype = {"fundamental": 0.1, "emotion": 0.2, "hype": 0.7}
+        # A 2.5% drop on heavy volume: a signal for a cautious investor, noise for a high-risk one.
+        self.assertEqual(decide("sell", -2.5, 0.0, 2.0, market, "low")["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -2.5, 0.0, 2.0, market, "mid")["verdict"], "no_signal")
+        self.assertEqual(decide("sell", -2.5, 0.0, 2.0, market, "high")["verdict"], "no_signal")
+        # A 3.5% drop is a signal for low and mid but still below the high-risk bar.
+        self.assertEqual(decide("sell", -3.5, 0.0, 2.0, market, "mid")["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -3.5, 0.0, 2.0, market, "high")["verdict"], "no_signal")
+        self.assertEqual(decide("sell", -4.5, 0.0, 2.0, market, "high")["verdict"], "panic_risk")
+        # The volume spike needed also scales: 1.4x counts only for the cautious band.
+        self.assertEqual(decide("sell", -5.0, 0.0, 1.4, market, "low")["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -5.0, 0.0, 1.4, market, "mid")["verdict"], "no_signal")
+        # Buying a small rally: hype matters to the cautious, not to the high-risk.
+        self.assertEqual(decide("buy", 0.0, 2.5, 2.0, hype, "low")["verdict"], "chasing_risk")
+        self.assertEqual(decide("buy", 0.0, 2.5, 2.0, hype, "high")["verdict"], "no_signal")
+        # No band behaves like mid, and an unknown band falls back to mid.
+        self.assertEqual(decide("sell", -2.5, 0.0, 2.0, market)["verdict"], "no_signal")
+        self.assertEqual(decide("sell", -2.5, 0.0, 2.0, market, "bogus")["verdict"], "no_signal")
+
+    def test_sigma_gate_uses_the_tickers_own_normal_swing(self) -> None:
+        market = {"fundamental": 0.0, "emotion": 1.0, "hype": 0.1}
+        # The same 4% drop: 3x a calm fund's normal day, but under one normal day of a volatile stock.
+        self.assertEqual(decide("sell", -4.0, 0.0, 2.0, market, "mid", drop_sigma=-3.0)["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -4.0, 0.0, 2.0, market, "mid", drop_sigma=-0.9)["verdict"], "no_signal")
+        # The band moves the bar: 1.8 typical days is enough for a cautious investor only.
+        self.assertEqual(decide("sell", -3.5, 0.0, 2.0, market, "low", drop_sigma=-1.8)["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -3.5, 0.0, 2.0, market, "mid", drop_sigma=-1.8)["verdict"], "no_signal")
+        # The size floor keeps a calm bond fund's 0.5% blip quiet even when it is 3x normal.
+        self.assertEqual(decide("sell", -0.5, 0.0, 2.0, market, "mid", drop_sigma=-3.0)["verdict"], "no_signal")
+
+    def test_persona_decides_whether_a_market_drop_is_panic(self) -> None:
+        # Same market-driven drop (net -0.29, like NVDA on the demo data), three investors.
+        nvda = {"fundamental": 0.295, "emotion": 0.587, "hype": 0.1}
+        self.assertEqual(decide("sell", -11.0, 0.0, 3.5, nvda, "high", drop_sigma=-4.2)["verdict"], "panic_risk")
+        self.assertEqual(decide("sell", -11.0, 0.0, 3.5, nvda, "mid", drop_sigma=-4.2)["verdict"], "mixed")
+        self.assertEqual(decide("sell", -11.0, 0.0, 3.5, nvda, "low", drop_sigma=-4.2)["verdict"], "mixed")
+        # Selling a growth-style holding fits a low-risk, short-horizon plan: not panic (Robert selling NVDA).
+        robert = decide("sell", -11.0, 0.0, 3.5, nvda, "low", drop_sigma=-4.2, growth_style=True)
+        self.assertEqual(robert["verdict"], "evidence_supported")
+        # The same sale stays panic for a high-risk, long-horizon investor (Amira).
+        self.assertEqual(decide("sell", -11.0, 0.0, 3.5, nvda, "high", drop_sigma=-4.2, growth_style=True)["verdict"], "panic_risk")
+        # The profile softens sells only: a buy keeps the data's own reading. And a band must be known.
+        self.assertEqual(decide("buy", -11.0, 0.0, 3.5, nvda, "low", drop_sigma=-4.2, growth_style=True)["verdict"], "dip_with_context")
+        self.assertEqual(decide("sell", -11.0, 0.0, 3.5, nvda, None, growth_style=True)["verdict"], "panic_risk")
+
+    def test_price_signals_learn_each_tickers_normal_swing(self) -> None:
+        signals = price_volume_signals(self.current, self.change, "2026-11-13")
+        for own in signals.values():
+            self.assertGreaterEqual(own["daily_vol_pct"], 0.0)
+            if own["daily_vol_pct"] > 0:
+                self.assertAlmostEqual(own["drop_sigma"], own["drop_pct"] / own["daily_vol_pct"], places=6)
+
+    def test_company_share_without_headlines_comes_from_the_data(self) -> None:
+        from sell_guard import data_company_share
+
+        market = {"market_drop_pct": -4.0, "market_rise_pct": 1.0}
+        follows = {"drop_pct": -4.0, "rise_pct": 0.0}
+        alone = {"drop_pct": -12.0, "rise_pct": 0.0}
+        flat = {"drop_pct": 0.0, "rise_pct": 0.0}
+        self.assertAlmostEqual(data_company_share(follows, market), 0.0)
+        self.assertAlmostEqual(data_company_share(alone, market), 1 - 4.0 / 12.0)
+        self.assertEqual(data_company_share(flat, market), 0.0)
 
     def test_result_reports_score_and_sentiment(self) -> None:
         sell = evaluate_trade("sell", "NVDA", self.current, self.change, self.news, "2026-11-13")

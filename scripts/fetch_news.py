@@ -4,9 +4,9 @@
     NEWSAPI_KEY=... python3 scripts/fetch_news.py --days 7
 
 Writes data/real/news.csv with the same columns as the simulated news
-(date,ticker,scope,headline,source). ``scope`` is left as "company" here and is
-re-judged by scripts/score_news_sentiment.py --source real, which also adds sentiment
-and category. The API key is read from the environment and never printed or stored.
+(date,ticker,scope,headline,source). ``scope`` is left as "company" and no sentiment is added:
+the Lambda classifies the simulated headlines only, and scoring real headlines there is not
+wired up yet. The API key is read from the environment and never printed or stored.
 The free NewsAPI plan only returns recent articles and may delay them.
 """
 from __future__ import annotations

@@ -1,18 +1,22 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { api, type Account, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck } from "@/lib/api";
+import { api, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck } from "@/lib/api";
 import { translate, useLanguage } from "@/i18n";
 import { fmtCad, fmtNumber, fmtPercent } from "@/i18n/format";
+import { accountValue } from "@/lib/accountValue";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
+import { useAccounts } from "@/features/accounts";
 import { useChat } from "@/features/chat";
+import { useMarket } from "@/features/market";
 import { TradeWarningDialog } from "./TradeWarningDialog";
 
 export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   const { t } = useLanguage();
   const chat = useChat();
+  const { live: marketLive, setLive } = useMarket();
   const persona = PERSONAS.find((p) => p.id === personaId)!;
   const [data, setData] = useState<Portfolio | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { accounts } = useAccounts(); // the same list, with the same values, as the Accounts page
   const [accountType, setAccountType] = useState("Non-registered");
   const [market, setMarket] = useState<MarketStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +32,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   useEffect(() => {
     let live = true;
     api
-      .portfolio(personaId, accountType)
+      .portfolio(personaId, accountType, marketLive)
       .then((result) => {
         if (!live) return;
         setData(result);
@@ -37,11 +41,15 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
       .catch((reason) => {
         if (live) setError(reason instanceof Error ? reason.message : translate("holdings.err.load"));
       });
-    api.accounts(personaId).then((list) => live && setAccounts(list)).catch(() => {});
-    api.market().then((status) => live && setMarket(status)).catch(() => {});
+    api.market(marketLive).then((status) => live && setMarket(status)).catch(() => {});
     return () => {
       live = false;
     };
+  }, [personaId, accountType, marketLive]);
+
+  // Tell the agents who is selected: the investor and account are saved to S3 whenever they change.
+  useEffect(() => {
+    api.setInvestor(personaId, accountType).catch(() => {}); // a failed save is repaired by the next trade check
   }, [personaId, accountType]);
 
   const refreshed = data?.refreshed ?? false;
@@ -56,7 +64,8 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
     setError(null);
     try {
       setMarket(await api.refreshMarket());
-      setData(await api.portfolio(personaId, accountType));
+      setLive(true);
+      setData(await api.portfolio(personaId, accountType, true));
       setCheck(null);
       setNote(null);
     } catch (reason) {
@@ -68,7 +77,8 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
 
   async function resetMarket() {
     setMarket(await api.resetMarket());
-    setData(await api.portfolio(personaId, accountType));
+    setLive(false);
+    setData(await api.portfolio(personaId, accountType, false));
     setCheck(null);
     setDeltas({});
     setCashDelta(0);
@@ -81,7 +91,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
       const holding = data?.holdings.find((h) => h.ticker === ticker);
       const owned = holding ? holding.shares + (deltas[ticker] ?? 0) : 0;
       setShares(String(Math.max(1, Math.round(owned * 0.1))));
-      setCheck(await api.tradeCheck(ticker, action));
+      setCheck(await api.tradeCheck(ticker, action, personaId, marketLive, accountType));
       setWarnOpen(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("holdings.err.check"));
@@ -186,7 +196,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
                     <span className="truncate text-[11px] font-semibold">{account.name}</span>
                   </span>
                   <span className="mt-1 block pl-6 text-[10px] tabular-nums text-slate-400">
-                    {fmtCad(account.balance)}
+                    {fmtCad(accountValue(account))}
                   </span>
                 </button>
               );

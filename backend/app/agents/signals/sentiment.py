@@ -49,18 +49,18 @@ TOOL_CONFIG = {
 }
 
 
-def run_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+def run_tool(name: str, arguments: Dict[str, Any], live: bool = False) -> Dict[str, Any]:
     """Execute a tool the model asked for. Unknown tools and tickers return an error result."""
     if name != "get_ticker_sentiment":
         return {"error": f"unknown tool: {name}"}
     ticker = str(arguments.get("ticker", "")).strip().upper()
     try:
-        return sell_guard_service.sentiment_summary(ticker)
+        return sell_guard_service.sentiment_summary(ticker, live=live)
     except ValueError as exc:
         return {"error": str(exc)}
 
 
-def ask(question: str, language: str = "en", bedrock_client: Optional[Any] = None) -> Dict[str, Any]:
+def ask(question: str, language: str = "en", bedrock_client: Optional[Any] = None, live: bool = False) -> Dict[str, Any]:
     model_id = os.getenv("BEDROCK_MODEL_ID")
     if not model_id:
         raise ServiceConfigurationError("BEDROCK_MODEL_ID is required")
@@ -89,7 +89,7 @@ def ask(question: str, language: str = "en", bedrock_client: Optional[Any] = Non
             return {"answer": answer, "tool_calls": trace, "model_id": model_id}
         results = []
         for call in calls:
-            result = run_tool(call["name"], call.get("input", {}))
+            result = run_tool(call["name"], call.get("input", {}), live)
             trace.append({"tool": call["name"], "input": call.get("input", {}), "result": result})
             results.append({"toolResult": {"toolUseId": call["toolUseId"], "content": [{"json": json.loads(json.dumps(result))}]}})
         messages.append({"role": "user", "content": results})

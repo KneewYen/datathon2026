@@ -48,9 +48,10 @@ export function TradeWarningDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id="warn-title" className={`text-lg font-semibold ${warning ? "text-amber-800" : "text-slate-900"}`}>
-          {warning
-            ? t(`warn.title.${check.verdict}` as MessageKey)
-            : t(check.action === "buy" ? "warn.buyTitle" : "warn.sellTitle", { ticker: check.ticker })}
+          {check.explanation?.popup_title ??
+            (warning
+              ? t(`warn.title.${check.verdict}` as MessageKey)
+              : t(check.action === "buy" ? "warn.buyTitle" : "warn.sellTitle", { ticker: check.ticker }))}
         </h2>
         <div className="mt-3">
           <TradeSimple check={check} />

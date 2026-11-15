@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import os
+import re
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.agents.signals import sentiment as sentiment_agent
+from app.api.chat import _agents
 from app.domain.presets import PERSONAS
 from app.services import sell_guard_service
-from app.services.errors import ExternalServiceError, ServiceConfigurationError
+from app.services.errors import ExternalServiceError
 
 
 router = APIRouter()
@@ -20,59 +22,111 @@ def _persona(persona_id: str) -> str:
     return persona_id
 
 
+@router.get("/runtime")
+def runtime() -> Dict[str, Any]:
+    """Where calculations run right now, proven by a real call (so an outage or expired AWS
+    credentials show up here as an error instead of a silent fallback)."""
+    status = sell_guard_service.market_status(False)
+    sources = status.get("data_sources", [])
+    market = next((src for src in sources if "/simulated/" in src), "")
+    found = re.match(r"s3://[^/]+/[^/]+/[^/]+", market)  # s3://<bucket>/simulated/v1
+    data = found.group(0) if found else os.path.dirname(os.path.dirname(market.split("#")[0]))
+    agents = _agents("runtime", {})
+    return {
+        "agents": agents["agents"],
+        "agent_runtime": agents["runtime"],
+        "engine": status["computed_by"],
+        "function": os.getenv("LAMBDA_FUNCTION_NAME") if status["computed_by"] == "aws-lambda" else None,
+        "region": os.getenv("AWS_REGION") if status["computed_by"] == "aws-lambda" else None,
+        "data": data,
+    }
+
+
 @router.get("/market")
-def market() -> Dict[str, Any]:
-    return sell_guard_service.market_status()
+def market(live: bool = False) -> Dict[str, Any]:
+    return sell_guard_service.market_status(live)
 
 
 @router.post("/market/refresh")
 def refresh_market() -> Dict[str, Any]:
-    """Load the second dataset (the simulated market change) as the live market."""
-    return sell_guard_service.refresh_market()
+    """Load the second dataset (the simulated market change) as the live market.
+
+    Stateless: nothing is remembered on the server. The caller keeps the "live" choice and
+    sends ``live=true`` with later requests, so every user and instance behaves the same.
+    """
+    return sell_guard_service.market_status(True)
 
 
 @router.post("/market/reset")
 def reset_market() -> Dict[str, Any]:
-    return sell_guard_service.reset_market()
+    return sell_guard_service.market_status(False)
 
 
 @router.get("/portfolio/{persona_id}")
-def portfolio(persona_id: str, account_type: Optional[str] = None) -> Dict[str, Any]:
-    """Holdings for a persona on the current live market."""
-    return sell_guard_service.portfolio(_persona(persona_id), account_type)
+def portfolio(persona_id: str, account_type: Optional[str] = None, live: bool = False) -> Dict[str, Any]:
+    """Holdings for a persona on the current or live market."""
+    return sell_guard_service.portfolio(_persona(persona_id), account_type, live)
 
 
 @router.get("/trade-check/{ticker}")
-def trade_check(ticker: str, action: Literal["buy", "sell"]) -> Dict[str, Any]:
-    """What the live market data and news say about buying or selling ``ticker``."""
-    try:
-        return sell_guard_service.evaluate(action, ticker)
-    except LookupError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+def trade_check(
+    ticker: str,
+    action: Literal["buy", "sell"],
+    persona: Optional[str] = None,
+    lang: str = "en",
+    live: bool = False,
+    account_type: Optional[str] = None,
+    user_id: str = "demo",
+) -> Dict[str, Any]:
+    """What the market data and news say about buying or selling ``ticker`` (run by the agents).
+
+    With ``persona`` the result also carries what the verdict may feel like for that investor.
+    """
+    return _agents(
+        "trade_check",
+        {"ticker": ticker, "action": action, "persona": persona, "lang": lang, "live": live, "account_type": account_type, "user_id": user_id},
+    )
 
 
 @router.get("/sentiment/{ticker}")
-def ticker_sentiment(ticker: str, half_life_days: float | None = None) -> Dict[str, Any]:
-    """Deterministic sentiment evidence for one ticker (no model call)."""
+def ticker_sentiment(ticker: str, half_life_days: float | None = None, live: bool = False) -> Dict[str, Any]:
+    """Sentiment evidence for one ticker (computed in the Lambda; no model call)."""
     try:
-        return sell_guard_service.sentiment_summary(ticker.upper(), half_life_days)
+        return sell_guard_service.sentiment_summary(ticker.upper(), half_life_days, live)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 class SentimentQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=500)
     language: Literal["en", "fr"] = "en"
+    live: bool = False
 
 
 @router.post("/sentiment/ask")
 def ask_sentiment(body: SentimentQuestion) -> Dict[str, Any]:
     """Bedrock decides which tickers to look up; the evidence still comes from deterministic code."""
-    try:
-        return sentiment_agent.ask(body.question, body.language)
-    except ServiceConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return _agents("sentiment_ask", body.model_dump())
+
+
+class InvestorChoice(BaseModel):
+    persona_id: str
+    account_type: Optional[str] = None
+    user_id: str = "demo"
+
+
+@router.put("/investor")
+def set_investor(body: InvestorChoice) -> Dict[str, Any]:
+    """Save the selected investor and account to S3 (by the agents), so every agent reads the same one."""
+    return _agents("set_investor", body.model_dump(), body.user_id)
+
+
+@router.get("/investor")
+def get_investor(user_id: str = "demo") -> Dict[str, Any]:
+    """The saved investor for this user, or 404 when none has been chosen."""
+    record = _agents("get_investor", {"user_id": user_id}, user_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="no investor saved for this user")
+    return record

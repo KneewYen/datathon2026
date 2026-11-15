@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AssistantDrawer } from "@/components/dashboard/AssistantDrawer";
 import { Header } from "@/components/dashboard/Header";
+import { RuntimeBadge } from "@/components/dashboard/RuntimeBadge";
 import { useLanguage } from "@/i18n";
 import { PERSONAS } from "@/lib/personas";
 import { useFeatureFlags } from "./flags";
@@ -96,7 +97,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <PersonaSwitcher />
+          <div className="flex flex-wrap items-center gap-3">
+            <RuntimeBadge />
+            <PersonaSwitcher />
+          </div>
         </div>
       </div>
       <main className="mx-auto max-w-6xl px-4 py-6">{content}</main>

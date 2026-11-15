@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { translate } from "@/i18n";
 import { api, type Account } from "@/lib/api";
+import { useMarket } from "./market";
 import { usePersona } from "./persona";
 
 type AccountsContext = {
@@ -17,25 +18,26 @@ const Context = createContext<AccountsContext | null>(null);
 
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const { personaId } = usePersona();
+  const { live } = useMarket(); // account values move with the market, so they reload when it is refreshed
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setAccounts(await api.accounts(personaId));
+      setAccounts(await api.accounts(personaId, live));
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : translate("accounts.err.load"));
     }
-  }, [personaId]);
+  }, [personaId, live]);
 
   useEffect(() => {
     api
-      .accounts(personaId)
+      .accounts(personaId, live)
       .then((list) => setAccounts(list))
       .catch((reason) => setError(reason instanceof Error ? reason.message : translate("accounts.err.load")));
-  }, [personaId]);
+  }, [personaId, live]);
 
   const remove = useCallback(async (id: string) => {
     try {

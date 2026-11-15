@@ -35,6 +35,15 @@ export type ChatResponse = {
   persona_fit?: PersonaFit | null;
 };
 
+export type RuntimeInfo = {
+  agents: string;
+  agent_runtime: string | null;
+  engine: string;
+  function: string | null;
+  region: string | null;
+  data: string;
+};
+
 export type PersonaFit = {
   persona: { id: string; name: string; risk: string; horizon_years: string; goal: string };
   stance: "fits" | "wait" | "careful";
@@ -68,6 +77,11 @@ export type Account = {
   horizon_agent: string;
   strategies: string[];
   balance: number;
+  /** Current value from the Lambda (holdings at today's prices plus cash). Show this, not `balance`. */
+  value_cad?: number;
+  invested_cad?: number;
+  cash_cad?: number;
+  value_source?: "market" | "stored balance";
   persona_id?: PersonaId;
 };
 
@@ -194,7 +208,19 @@ export type MarketStatus = {
   computed_by: string;
 };
 
+export type Explanation = {
+  source: string;
+  popup_title: string;
+  popup_text: string;
+  detail: string;
+  evidence_ids: string[];
+};
+
 export type TradeCheck = {
+  explanation?: Explanation | null;
+  driver?: "market" | "company" | "mixed";
+  trace?: Array<{ agent: string; action: string }>;
+  persona_fit?: PersonaFit | null;
   action: TradeAction;
   ticker: string;
   verdict: TradeVerdict;
@@ -277,25 +303,33 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  chat: (message: string, holdingsPersona?: PersonaId) =>
-    post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang(), holdings_persona: holdingsPersona }),
+  chat: (message: string, holdingsPersona?: PersonaId, live = false) =>
+    post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang(), holdings_persona: holdingsPersona, live }),
   approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk, lang: getLang() }),
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject?lang=${getLang()}`, {}),
-  accounts: (persona?: PersonaId) =>
+  accounts: (persona?: PersonaId, live = false) =>
     get<Account[]>(
-      `/api/accounts?user_id=${encodeURIComponent(USER_ID)}${persona ? `&persona_id=${encodeURIComponent(persona)}` : ""}`,
+      `/api/accounts?user_id=${encodeURIComponent(USER_ID)}&live=${live}${persona ? `&persona_id=${encodeURIComponent(persona)}` : ""}`,
     ),
   deleteAccount: async (id: string) => {
     const response = await fetch(`${API_URL}/api/accounts/${id}?user_id=${encodeURIComponent(USER_ID)}`, { method: "DELETE" });
     if (!response.ok) throw new Error(translate("error.removeAccount", { status: response.status }));
   },
-  market: () => get<MarketStatus>("/api/market"),
+  /** Save the selected investor and account to S3 (via the agents), so every agent reads the same one. */
+  setInvestor: (persona: PersonaId, accountType?: string) =>
+    put<unknown>("/api/investor", { persona_id: persona, account_type: accountType ?? null, user_id: USER_ID }),
+  runtime: () => get<RuntimeInfo>("/api/runtime"),
+  market: (live = false) => get<MarketStatus>(`/api/market?live=${live}`),
   refreshMarket: () => post<MarketStatus>("/api/market/refresh", {}),
   resetMarket: () => post<MarketStatus>("/api/market/reset", {}),
-  portfolio: (persona: PersonaId, accountType?: string) =>
-    get<Portfolio>(`/api/portfolio/${persona}${accountType ? `?account_type=${encodeURIComponent(accountType)}` : ""}`),
-  tradeCheck: (ticker: string, action: TradeAction) =>
-    get<TradeCheck>(`/api/trade-check/${encodeURIComponent(ticker)}?action=${action}`),
+  portfolio: (persona: PersonaId, accountType?: string, live = false) =>
+    get<Portfolio>(
+      `/api/portfolio/${persona}?live=${live}${accountType ? `&account_type=${encodeURIComponent(accountType)}` : ""}`
+    ),
+  tradeCheck: (ticker: string, action: TradeAction, persona?: PersonaId, live = false, accountType?: string) =>
+    get<TradeCheck>(
+      `/api/trade-check/${encodeURIComponent(ticker)}?action=${action}&lang=${getLang()}&live=${live}&user_id=${encodeURIComponent(USER_ID)}${persona ? `&persona=${persona}` : ""}${accountType ? `&account_type=${encodeURIComponent(accountType)}` : ""}`
+    ),
   features: () => get<{ flags: Record<string, boolean> }>("/api/features"),
   setFeature: (id: string, enabled: boolean) =>
     put<{ flags: Record<string, boolean> }>(`/api/features/${id}`, { enabled }),

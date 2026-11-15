@@ -94,3 +94,51 @@ def test_workshop_policy_review_documents_are_valid_json_without_wildcard_action
             if isinstance(actions, str):
                 actions = [actions]
             assert "*" not in actions
+
+
+def test_lambda_role_reads_market_data_writes_only_scored_headlines_and_invokes_nova_lite() -> None:
+    statements = {
+        item["Sid"]: item
+        for item in load_template()["Resources"]["FinancialToolsExecutionRole"]["Properties"]["Policies"][0][
+            "PolicyDocument"
+        ]["Statement"]
+    }
+
+    assert statements["ReadSimulatedMarketData"]["Action"] == ["s3:GetObject", "s3:GetObjectVersion"]
+    write = statements["WriteScoredHeadlinesOnly"]
+    assert write["Action"] == ["s3:PutObject"]
+    assert len(write["Resource"]) == 2  # exactly the two scored-headline files, nothing else
+    assert statements["InvokeNovaLiteInferenceProfile"]["Action"] == ["bedrock:InvokeModel"]
+    assert "bedrock:InferenceProfileArn" in json.dumps(statements["InvokeNovaLiteDestinationModels"])
+    for statement in statements.values():
+        actions = statement["Action"]
+        assert "*" not in ([actions] if isinstance(actions, str) else actions)
+
+
+def test_function_has_time_to_classify_headlines_and_knows_its_model_and_market_prefix() -> None:
+    template = load_template()
+    function = template["Resources"]["FinancialToolsFunction"]["Properties"]
+    variables = template["Globals"]["Function"]["Environment"]["Variables"]
+
+    assert template["Globals"]["Function"]["Timeout"] >= 120
+    assert {"MARKET_PREFIX", "MARKET_DATASET_ID", "BEDROCK_MODEL_ID"} <= set(variables)
+    assert function["Environment"]["Variables"]["DATA_BUCKET"] == {"Ref": "DataBucket"}
+
+
+def test_agent_runtime_role_can_only_touch_the_investor_prefix_for_writes() -> None:
+    template = yaml.load((ROOT / "infra" / "agents.yaml").read_text(), Loader=CloudFormationLoader)
+    statements = {
+        item["Sid"]: item
+        for item in template["Resources"]["AgentRuntimeRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    }
+
+    write = statements["ReadAndWriteSelectedInvestor"]
+    assert write["Action"] == ["s3:GetObject", "s3:PutObject"]
+    assert json.dumps(write["Resource"]).endswith('/personas/*"}')
+    assert statements["ListInvestorPrefixOnly"]["Condition"]["StringLike"]["s3:prefix"] == ["personas/*"]
+    # nothing else the runtime may do writes to S3
+    writers = [sid for sid, item in statements.items() if "s3:PutObject" in item["Action"]]
+    assert writers == ["ReadAndWriteSelectedInvestor"]
+    for statement in statements.values():
+        actions = statement["Action"]
+        assert "*" not in ([actions] if isinstance(actions, str) else actions)

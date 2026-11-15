@@ -7,13 +7,14 @@ name from the asset universe ("nvidia" -> NVDA, "shopify" -> SHOP.TO).
 from __future__ import annotations
 
 import csv
+import io
 import re
 import unicodedata
 from functools import lru_cache
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-UNIVERSE = Path(__file__).resolve().parents[3] / "hackathon_info" / "alphaforge_starter" / "assets_universe.csv"
+from app.services import reference_data
+
 
 SELL_WORDS = r"sell|selling|vendre|vends|vendez|vendons"
 BUY_WORDS = r"buy|buying|purchase|acheter|achete|achetez|achetons"
@@ -45,16 +46,14 @@ def _aliases() -> Dict[str, str]:
         if len(alias) >= 2:
             found.setdefault(alias, set()).add(ticker)
 
-    if UNIVERSE.exists():
-        with UNIVERSE.open(newline="", encoding="utf-8") as handle:
-            for row in csv.DictReader(handle):
-                ticker, name = row["ticker"], row["name"]
-                add(ticker, ticker)
-                add(ticker.split(".")[0], ticker)
-                add(name, ticker)
-                first = re.split(r"[\s(]", name)[0]
-                if len(first) >= 4:
-                    add(first, ticker)
+    for row in csv.DictReader(io.StringIO(reference_data.read_text("assets_universe.csv"))):
+        ticker, name = row["ticker"], row["name"]
+        add(ticker, ticker)
+        add(ticker.split(".")[0], ticker)
+        add(name, ticker)
+        first = re.split(r"[\s(]", name)[0]
+        if len(first) >= 4:
+            add(first, ticker)
     aliases = {alias: next(iter(t)) for alias, t in found.items() if len(t) == 1}
     aliases.update(SYNONYMS)
     return aliases
@@ -76,3 +75,8 @@ def parse(message: str) -> Optional[Tuple[str, str, Optional[str]]]:
         if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", text):
             return action, aliases[alias], None
     return None
+
+
+def resolve(text: str) -> Optional[str]:
+    """Ticker for a ticker symbol or company name ("nvidia" -> NVDA), or None."""
+    return _aliases().get(_fold(text).strip())
