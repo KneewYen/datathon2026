@@ -1,20 +1,12 @@
-import type { TraceStep } from "@/lib/api";
+"use client";
 import type { CSSProperties } from "react";
-
-const AGENT_NAMES: Record<string, string> = {
-  global_orchestrator: "Global orchestrator",
-  tfsa_account_agent: "TFSA account agent",
-  rrsp_account_agent: "RRSP account agent",
-  growth_strategy_agent: "Growth strategy agent",
-  dividend_strategy_agent: "Dividend strategy agent",
-  momentum_strategy_agent: "Momentum strategy agent",
-  capital_preservation_strategy_agent: "Capital preservation agent",
-  aws_financial_tools: "AWS financial tools",
-  governance_agent: "Governance",
-  explainability_agent: "Explainability",
-};
+import { useLanguage } from "@/i18n";
+import { agentName, traceAction } from "@/i18n/labels";
+import type { TraceStep } from "@/lib/api";
+import { plain } from "@/lib/plainLanguage";
 
 export function TraceTimeline({ trace }: { trace: TraceStep[] }) {
+  const { t, tOr } = useLanguage();
   return (
     <ol className="trace-list">
       {trace.map((step, index) => (
@@ -22,12 +14,12 @@ export function TraceTimeline({ trace }: { trace: TraceStep[] }) {
           <span className="trace-number">{String(index + 1).padStart(2, "0")}</span>
           <div>
             <div className="trace-agent">
-              {AGENT_NAMES[step.agent] ?? step.agent}
-              <span>{step.status}</span>
+              {agentName(step.agent)}
+              <span>{tOr(`status.${step.status}`, step.status)}</span>
             </div>
-            <p>{step.action}</p>
+            <p>{plain(traceAction(step))}</p>
             {step.delegated_to.length > 0 && (
-              <small>Delegated to {step.delegated_to.map((agent) => AGENT_NAMES[agent] ?? agent).join(", ")}</small>
+              <small>{t("trace.delegatedTo", { agents: step.delegated_to.map(agentName).join(", ") })}</small>
             )}
           </div>
         </li>

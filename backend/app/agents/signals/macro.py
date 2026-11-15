@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+from app import i18n
+
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[4] / "hackathon_info" / "alphaforge_starter"
 DATA_DIR = Path(os.getenv("MACRO_DATA_DIR", DEFAULT_DATA_DIR))
 REQUIRED_SERIES = {
@@ -41,14 +43,19 @@ def _series() -> Dict[str, List[tuple]]:
     return out
 
 
-def recession_signals() -> Dict[str, Any]:
+def recession_signals(lang: str = "en") -> Dict[str, Any]:
+    fr = i18n.normalize(lang) == "fr"
     try:
         s = _series()
     except (FileNotFoundError, KeyError, TypeError, ValueError) as exc:
         return {
             "metrics": {},
             "sources": [],
-            "warnings": [f"Historical macro indicators are unavailable: {exc}"],
+            "warnings": [
+                f"Les indicateurs macroéconomiques historiques sont indisponibles : {exc}"
+                if fr
+                else f"Historical macro indicators are unavailable: {exc}"
+            ],
         }
 
     us10, us2 = s["DGS10"][-1], s["DGS2"][-1]
@@ -62,31 +69,49 @@ def recession_signals() -> Dict[str, Any]:
     un_change = round(un_now[1] - un_low_12m, 2)
 
     notes = []
-    notes.append(
-        f"U.S. yield curve (10y − 2y) is {us_spread:+.2f} pts on {us10[0]}: "
-        + ("inverted, a historical warning sign." if us_spread < 0 else "not inverted.")
-    )
-    notes.append(
-        f"Canada yield curve (10y − 2y) is {ca_spread:+.2f} pts on {ca10[0]}: "
-        + ("inverted." if ca_spread < 0 else "not inverted.")
-    )
-    notes.append(
-        f"U.S. unemployment is {un_now[1]}% ({un_now[0]}), {un_change:+.2f} pts vs. its 12-month low"
-        + (": a sharp rise, often seen near recessions." if un_change >= 0.5 else ": no sharp rise.")
-    )
+    if fr:
+        notes.append(
+            f"La courbe des taux américaine (10 ans − 2 ans) est de {us_spread:+.2f} pt le {us10[0]} : "
+            + ("inversée, un signal d'alerte historique." if us_spread < 0 else "non inversée.")
+        )
+        notes.append(
+            f"La courbe des taux canadienne (10 ans − 2 ans) est de {ca_spread:+.2f} pt le {ca10[0]} : "
+            + ("inversée." if ca_spread < 0 else "non inversée.")
+        )
+        notes.append(
+            f"Le chômage américain est de {un_now[1]} % ({un_now[0]}), {un_change:+.2f} pt par rapport à son creux sur 12 mois"
+            + (" : une forte hausse, souvent observée près des récessions." if un_change >= 0.5 else " : pas de forte hausse.")
+        )
+    else:
+        notes.append(
+            f"U.S. yield curve (10y − 2y) is {us_spread:+.2f} pts on {us10[0]}: "
+            + ("inverted, a historical warning sign." if us_spread < 0 else "not inverted.")
+        )
+        notes.append(
+            f"Canada yield curve (10y − 2y) is {ca_spread:+.2f} pts on {ca10[0]}: "
+            + ("inverted." if ca_spread < 0 else "not inverted.")
+        )
+        notes.append(
+            f"U.S. unemployment is {un_now[1]}% ({un_now[0]}), {un_change:+.2f} pts vs. its 12-month low"
+            + (": a sharp rise, often seen near recessions." if un_change >= 0.5 else ": no sharp rise.")
+        )
     return {
         "metrics": {
-            "US 10y−2y": f"{us_spread:+.2f}",
-            "CA 10y−2y": f"{ca_spread:+.2f}",
-            "US unemployment": f"{un_now[1]}%",
-            "Unemp. vs 12m low": f"{un_change:+.2f}",
+            ("É.-U. 10a−2a" if fr else "US 10y−2y"): f"{us_spread:+.2f}",
+            ("Can. 10a−2a" if fr else "CA 10y−2y"): f"{ca_spread:+.2f}",
+            ("Chômage É.-U." if fr else "US unemployment"): f"{un_now[1]}%",
+            ("Chôm. vs creux 12 m" if fr else "Unemp. vs 12m low"): f"{un_change:+.2f}",
         },
         "notes": notes,
         "sources": [
-            "FRED: DGS10, DGS2, UNRATE (macro_rates.csv)",
-            "Bank of Canada: BD.CDN.10YR.DQ.YLD, BD.CDN.2YR.DQ.YLD (macro_rates.csv)",
+            "FRED : DGS10, DGS2, UNRATE (macro_rates.csv)" if fr else "FRED: DGS10, DGS2, UNRATE (macro_rates.csv)",
+            "Banque du Canada : BD.CDN.10YR.DQ.YLD, BD.CDN.2YR.DQ.YLD (macro_rates.csv)"
+            if fr
+            else "Bank of Canada: BD.CDN.10YR.DQ.YLD, BD.CDN.2YR.DQ.YLD (macro_rates.csv)",
         ],
         "warnings": [
-            "Indicators are historical reference data only; they are excluded from portfolio backtests and do not predict a recession."
+            "Les indicateurs sont des données de référence historiques seulement ; ils sont exclus des tests rétrospectifs du portefeuille et ne prédisent pas une récession."
+            if fr
+            else "Indicators are historical reference data only; they are excluded from portfolio backtests and do not predict a recession."
         ],
     }

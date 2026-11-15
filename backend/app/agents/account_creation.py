@@ -18,6 +18,7 @@ def create(user_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "persona": p["persona"],
         "horizon_agent": p["horizon_agent"],
         "strategies": p["strategies"],
+        "balance": 0.0,  # new accounts start empty until funded
     }
     store.accounts(user_id).append(account)
     return account

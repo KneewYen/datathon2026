@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.agents.orchestrator import GlobalOrchestrator
 from app.domain.models import AnalysisRequest, AnalysisResponse
+from app.i18n import normalize
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
@@ -18,10 +19,12 @@ class ChatRequest(BaseModel):
     persona_id: Optional[str] = None
     user_id: str = "demo"
     message: str
+    lang: str = "en"
 
 
 class ApproveRequest(BaseModel):
     risk: Optional[str] = None
+    lang: str = "en"
 
 
 def _run(request: AnalysisRequest) -> AnalysisResponse:
@@ -43,20 +46,24 @@ def chat(request: ChatRequest) -> Any:
     """Run the focused analysis or the conversational account flow."""
     if request.persona_id:
         try:
-            return _run(AnalysisRequest(persona_id=request.persona_id, question=request.message))
+            return _run(
+                AnalysisRequest(
+                    persona_id=request.persona_id, question=request.message, language=normalize(request.lang)
+                )
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return orchestrator.chat(request.user_id, request.message)
+    return orchestrator.chat(request.user_id, request.message, request.lang)
 
 
 @router.post("/actions/{action_id}/approve")
 def approve(action_id: str, request: ApproveRequest) -> Dict[str, Any]:
-    return orchestrator.approve(action_id, request.risk)
+    return orchestrator.approve(action_id, request.risk, request.lang)
 
 
 @router.post("/actions/{action_id}/reject")
-def reject(action_id: str) -> Dict[str, Any]:
-    return orchestrator.reject(action_id)
+def reject(action_id: str, lang: str = "en") -> Dict[str, Any]:
+    return orchestrator.reject(action_id, lang)
 
 
 @router.get("/accounts")
@@ -64,6 +71,16 @@ def accounts(user_id: str = "demo") -> List[Dict[str, Any]]:
     from app import store
 
     return store.accounts(user_id)
+
+
+@router.delete("/accounts/{account_id}")
+def delete_account(account_id: str, user_id: str = "demo") -> Dict[str, bool]:
+    from app import store
+
+    if not store.delete_account(user_id, account_id):
+        raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+    return {"deleted": True}
+
 
 
 @router.get("/meta")
