@@ -1,8 +1,8 @@
 # PortfolioGuard AI implementation plan
 
-**Status:** AWS Lambda vertical slice verified live; awaiting Bedrock-test approval
+**Status:** AWS Lambda vertical slice and demo workspace verified; awaiting Bedrock-test approval
 **Audit date:** 2026-11-14
-**Repository baseline:** `main` at `962e9e9`
+**Repository baseline:** post-`dev` merge at `09bd41b`
 **Implementation branch:** `nicolas-implementation`
 **Product boundary:** Fictional portfolios and hypothetical analysis only. No real transactions or personalized financial advice.
 
@@ -18,11 +18,18 @@ before an end-to-end AWS proof.
 | Deterministic financial tool | Implemented locally | S3-backed Lambda operation `compare_strategy_shift`; manifest checksum verification, golden calculation, and data-quality tests |
 | First demo scenario | Implemented locally | 20-point TFSA growth-to-dividend comparison with volatility, drawdown, historical return, total return, concentration, and performance series |
 | Governance and explainability | Implemented locally | Deterministic rules plus schema-validated Bedrock Converse response restricted to supplied evidence IDs |
-| Dashboard | Implemented and visually verified | Responsive persona, allocation, metric, performance, trace, governance, assumption, limitation, and source states |
+| Dashboard | Implemented and visually verified | Landing page hands persona context to the app-like `/dashboard`; one API client drives readiness, chat, accounts, Lambda-backed metrics, Bedrock explanation, trace, governance, assumptions, limitations, and sources |
+| Conversational demo workspace | Implemented locally | Approval-gated fictional account creation, profile route, FAQ and historical macro flow, local CORS coverage, and visible session-only/simulation boundaries |
 | AWS infrastructure | Deployed and verified live | `portfolioguard-workshop` is `CREATE_COMPLETE`; versioned S3 integrity passed; one bounded Lambda run read S3 and matched all local metrics and 93 performance points exactly |
 | Real AWS acceptance | Lambda passed; Bedrock pending | Live Lambda request `dc653658-6c96-40fd-9310-f616a0b1e086` matched the deterministic local engine exactly; no Bedrock call has occurred |
 | Advanced analytics | Deferred | VaR/CVaR, deeper momentum analytics, and monitoring dashboards follow the working vertical slice |
 | Submission package | Drafted | README, technical documentation, one-pager, and timed demo script are present; final screenshots and live AWS identifiers follow deployment |
+
+The post-merge integration repair keeps `/` as the presentation landing page and
+uses `/dashboard` as the only operational demo surface. The landing CTA passes the
+selected persona and requests the primary live analysis. The workspace reports
+configuration readiness without calling AWS, marks services verified only after a
+successful end-to-end response, and fails closed without placeholder metrics.
 
 Current deterministic fixture result for the primary window (2023-11-13 through
 2026-11-12, 738 common observations): volatility 18.48% → 13.71%, maximum drawdown
@@ -413,7 +420,7 @@ scripts/
 
 1. **AWS account and region:** use the organizer-provided Polyfinances 2026 Workshop Studio account in `us-east-1`; console access is confirmed and the session lasts 72 hours.
 2. **Bedrock model:** use the system-defined US Amazon Nova Lite profile `us.amazon.nova-lite-v1:0`. Invocation still requires confirmation that the workshop role and organization controls allow routing to `us-east-1`, `us-east-2`, and `us-west-2`.
-3. **Deployment approval:** only the approved SAM packaging bucket and two tiny artifacts exist. No application data bucket, Lambda, Bedrock invocation, CloudWatch log group, or other application resource will be created until the user approves execution of the reviewed change set and expected cost.
+3. **Deployment approval:** the reviewed `portfolioguard-workshop` stack is deployed with the approved S3 bucket, Lambda, least-privilege execution role, and CloudWatch log group. The dataset upload and one bounded Lambda acceptance run were separately approved and completed. Bedrock has not been invoked and still requires explicit approval.
 4. **Credentials:** use Workshop Studio's temporary AWS CLI credentials through the standard AWS credential chain and a local named profile. Never request or store their values in source, logs, screenshots, or chat.
 5. **Workshop IAM:** read-only IAM simulation on 2026-11-14 confirmed role lifecycle, `iam:PassRole`, CloudFormation, S3, Lambda, Logs, and Bedrock actions for `WSParticipantRole`. No suitable existing application execution role exists, so the stack creates one unnamed least-privilege Lambda role under `CAPABILITY_IAM`. Simulations are strong preflight evidence, not a substitute for reviewing the change set or the separately approved live Bedrock invocation.
 6. **Portfolio assumptions:** the challenge supplies personas but not holdings or contribution room. Demo holdings and account balances will be explicitly fictional and versioned in the repository.

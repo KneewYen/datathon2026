@@ -25,9 +25,14 @@ class StrategyShift(BaseModel):
 
 class AnalysisRequest(BaseModel):
     persona_id: PersonaId = "amira"
-    question: str = "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?"
+    question: str = Field(
+        default="Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?",
+        min_length=1,
+        max_length=500,
+    )
     account_type: AccountType = "TFSA"
     base_currency: Literal["CAD"] = "CAD"
+    language: Literal["en", "fr"] = "en"  # language of the written explanation
     strategy_allocations: Dict[StrategyName, float] = Field(
         default_factory=lambda: {
             "growth": 0.60,

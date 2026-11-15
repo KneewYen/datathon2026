@@ -12,8 +12,14 @@ import boto3
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
+FRENCH_INSTRUCTION = (
+    "\nWrite the answer and every limitation in Canadian French. "
+    "The no-digits rule still applies: spell out any quantity or use none."
+)
+
 SYSTEM_PROMPT = """You are the PortfolioGuard AI explainability component.
-Use only the supplied evidence. Do not calculate or repeat numeric figures, predict returns,
+Use only the supplied evidence. Do not calculate or repeat numeric figures, percentages, dates,
+or numbers from the user's question. The answer must contain no digits. Do not predict returns,
 expose hidden reasoning, or provide financial advice. The dashboard displays all verified
 numbers separately. Return JSON only with this shape:
 {"answer": "concise answer with the material risk/return trade-off", "evidence_ids":
@@ -79,25 +85,48 @@ def synthesize(evidence_packet: Dict[str, Any]) -> Dict[str, Any]:
     if not model_id:
         raise ServiceConfigurationError("BEDROCK_MODEL_ID is required")
 
-    response = client().converse(
-        modelId=model_id,
-        system=[{"text": SYSTEM_PROMPT}],
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "text": "Explain this verified evidence packet:\n"
-                        + json.dumps(evidence_packet, separators=(",", ":"))
-                    }
-                ],
-            }
-        ],
-        inferenceConfig={"maxTokens": 500, "temperature": 0.0},
+    prompt = "Explain this verified evidence packet:\n" + json.dumps(
+        evidence_packet, separators=(",", ":")
     )
-    try:
-        text = response["output"]["message"]["content"][0]["text"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ExternalServiceError("Bedrock response did not contain explanation text") from exc
+    messages = [{"role": "user", "content": [{"text": prompt}]}]
 
-    return _validate_result(_extract_json(text), evidence_packet, model_id)
+    def request() -> str:
+        response = client().converse(
+            modelId=model_id,
+            system=[{"text": SYSTEM_PROMPT + (FRENCH_INSTRUCTION if evidence_packet.get("language") == "fr" else "")}],
+            messages=messages,
+            inferenceConfig={"maxTokens": 500, "temperature": 0.0},
+        )
+        try:
+            return response["output"]["message"]["content"][0]["text"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ExternalServiceError(
+                "Bedrock response did not contain explanation text"
+            ) from exc
+
+    text = request()
+    try:
+        result = _validate_result(_extract_json(text), evidence_packet, model_id)
+    except ExternalServiceError as exc:
+        if str(exc) != "Bedrock explanation attempted to introduce a numeric claim":
+            raise
+        messages.extend(
+            [
+                {"role": "assistant", "content": [{"text": text}]},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": (
+                                "The previous answer violated the no-numbers rule. "
+                                "Return the same JSON answer without any digits, "
+                                "percentages, dates, or numeric words."
+                            )
+                        }
+                    ],
+                },
+            ]
+        )
+        result = _validate_result(_extract_json(request()), evidence_packet, model_id)
+
+    return result

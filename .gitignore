@@ -21,3 +21,12 @@ infra/samconfig.toml
 
 # OS
 .DS_Store
+
+# Runtime state written by the app (admin feature flags)
+backend/.runtime/
+
+# Datathon project specification file
+datathon_Project_Spec/
+
+# Build output
+.build/

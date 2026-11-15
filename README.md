@@ -1,6 +1,6 @@
 # PortfolioGuard AI
 
-**Team 62 · AlphaForge AI Datathon 2026**
+***Team 62 · AlphaForge AI Datathon 2026***
 
 PortfolioGuard AI is an evidence-backed decision-support prototype for fictional
 TFSA and RRSP portfolios. It delegates a scenario through a real agent hierarchy,
@@ -83,9 +83,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The API runs at `http://localhost:8000`; the dashboard runs at
-`http://localhost:3000`. The dashboard deliberately shows no substitute metrics
-when live AWS is unavailable.
+The API runs at `http://localhost:8000`; the landing page runs at
+`http://localhost:3000`, and the demo workspace is at
+`http://localhost:3000/dashboard`. Selecting a persona on the landing page and
+choosing **Analyze with live AWS** opens the workspace and starts the approved
+TFSA comparison. The workspace deliberately shows no substitute metrics when
+live AWS is unavailable.
+
+FastAPI loads `backend/.env` for local development without overriding variables
+already supplied by the shell or deployment environment.
 
 ## Environment configuration
 
@@ -98,9 +104,14 @@ Backend configuration is documented in `backend/.env.example`:
 | `BEDROCK_MODEL_ID` | `us.amazon.nova-lite-v1:0` | Amazon Nova Lite US inference profile |
 | `LAMBDA_FUNCTION_NAME` | `portfolioguard-workshop-financial-tools` | Deterministic calculation function |
 | `S3_BUCKET` | CloudFormation `DataBucketName` output | Versioned dataset bucket used by deployment helpers |
+| `DATA_PREFIX` | `starter/v1` | Approved dataset prefix reported by the readiness endpoint |
+| `ENGINE` | unset (`lambda`) | `lambda` runs every calculation in the Lambda against S3; `local` is for tests and offline work only |
+| `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call FastAPI |
 
-The frontend uses `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8000` in
-`frontend/.env.example`. Keep `.env` and `.env.local` files outside Git. Never place
+The frontend uses one API base URL, `NEXT_PUBLIC_API_URL`, defaulting to
+`http://localhost:8000` in `frontend/.env.example`. The app workspace uses that
+same connection for readiness, conversational actions, accounts, Lambda-backed
+analysis, and Bedrock-backed explanations. Keep `.env` and `.env.local` files outside Git. Never place
 temporary access keys or session tokens in environment example files; configure the
 named profile using Workshop Studio's secure temporary-credential workflow.
 
