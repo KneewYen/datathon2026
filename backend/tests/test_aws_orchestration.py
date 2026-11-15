@@ -208,6 +208,38 @@ def test_named_bedrock_agent_withholds_numeric_rationale_but_keeps_safe_routing(
     assert "withheld" in result["finding"]["summary"]
 
 
+def test_leaf_agent_ignores_unauthorized_nested_agent_without_executing_it(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("BEDROCK_MODEL_ID", "us.amazon.nova-lite-v1:0")
+
+    result = invoke_named_agent(
+        "growth_strategy_agent",
+        {"question": "Review a fictional technology purchase."},
+        request_id="2f41ce18-57d5-4921-a4d1-796c68187444",
+        parent_id="agent.tfsa_account_agent",
+        bedrock_client=FakeBedrock(
+            {
+                "summary": "Review growth compatibility and covered technology overlap.",
+                "activated_agents": ["tfsa_account_agent"],
+                "requested_operations": [
+                    "analyze_holdings_exposure",
+                    "simulate_account_purchase",
+                ],
+            }
+        ),
+    )
+
+    assert result["activated_agents"] == []
+    assert result["agent_selection_policy"] == (
+        "unauthorized_leaf_delegation_ignored"
+    )
+    assert result["requested_operations"] == [
+        "analyze_holdings_exposure",
+        "simulate_account_purchase",
+    ]
+
+
 def test_state_machine_routes_only_validated_dynamic_accounts_agents_and_tools() -> None:
     definition = json.loads(
         (ROOT / "infra" / "workflows" / "investment_analysis.asl.json").read_text()

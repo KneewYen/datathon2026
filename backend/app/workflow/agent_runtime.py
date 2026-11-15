@@ -163,10 +163,18 @@ def invoke_named_agent(
     summary = document.get("summary")
     activated_agents = document.get("activated_agents", [])
     requested_operations = document.get("requested_operations", [])
-    if not isinstance(activated_agents, list) or not set(activated_agents).issubset(
-        definition.allowed_agents
+    if not isinstance(activated_agents, list) or any(
+        not isinstance(item, str) for item in activated_agents
     ):
         raise ExternalServiceError(f"Bedrock agent {role} selected an unsupported agent")
+    unsupported_agents = set(activated_agents) - set(definition.allowed_agents)
+    if unsupported_agents and definition.allowed_agents:
+        raise ExternalServiceError(f"Bedrock agent {role} selected an unsupported agent")
+    if unsupported_agents:
+        activated_agents = []
+        agent_selection_policy = "unauthorized_leaf_delegation_ignored"
+    else:
+        agent_selection_policy = "model_selection_accepted"
     if not isinstance(requested_operations, list) or not set(
         requested_operations
     ).issubset(definition.allowed_operations):
@@ -185,6 +193,7 @@ def invoke_named_agent(
         "role": definition.responsibility,
         "summary": safe_summary,
         "summary_policy": summary_policy,
+        "agent_selection_policy": agent_selection_policy,
         "requested_operations": requested_operations,
         "evidence_ids": [],
     }
@@ -206,6 +215,7 @@ def invoke_named_agent(
         "activated_agents": activated_agents,
         "requested_operations": requested_operations,
         "summary_policy": summary_policy,
+        "agent_selection_policy": agent_selection_policy,
         "model_id": model_id,
         "event": event.model_dump(mode="json"),
     }
