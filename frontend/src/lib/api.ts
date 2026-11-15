@@ -1,9 +1,11 @@
+import { getLang, translate } from "@/i18n";
 import { PERSONAS, type PersonaId } from "./personas";
 
 export type Proposal = {
   id: string;
   type: "create_account";
   account_type: string;
+  account_type_label?: string;
   horizon: string;
   horizon_label: string;
   risk: string;
@@ -126,8 +128,55 @@ export type AnalysisResponse = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const USER_ID = "demo";
 
-export const DEMO_QUESTION =
-  "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
+export type TradeAction = "buy" | "sell";
+
+export type TradeVerdict =
+  | "no_signal"
+  | "panic_risk"
+  | "evidence_supported"
+  | "mixed"
+  | "chasing_risk"
+  | "falling_knife"
+  | "dip_with_context";
+
+export type Holding = {
+  ticker: string;
+  weight: number;
+  shares: number;
+  price: number;
+  value_cad: number;
+  move_pct: number;
+};
+
+export type Portfolio = {
+  persona_id: PersonaId;
+  refreshed: boolean;
+  invested_cad: number;
+  cash_cad: number;
+  total_value_cad: number;
+  holdings: Holding[];
+  note: string;
+  computed_by: string;
+};
+
+export type MarketStatus = {
+  refreshed: boolean;
+  new_price_rows: number;
+  new_headlines: number;
+  computed_by: string;
+};
+
+export type TradeCheck = {
+  action: TradeAction;
+  ticker: string;
+  verdict: TradeVerdict;
+  score: { name: string; value: number; low_label: string; high_label: string } | null;
+  sentiment: number | null;
+  sentiment_label: "upbeat" | "neutral" | "negative" | null;
+  evidence: { evidence_id: string; label: string; value: number | null; unit: string }[];
+  limitations: string[];
+  computed_by: string;
+};
 
 export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
   const persona = PERSONAS.find((item) => item.id === persona_id)!;
@@ -136,7 +185,8 @@ export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisRespon
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       persona_id,
-      question: persona.scenario.question,
+      question: translate(`persona.${persona_id}.scenario`),
+      language: getLang(),
       account_type: "TFSA",
       strategy_allocations: persona.allocations,
       shift: { from_strategy: persona.scenario.from, to_strategy: persona.scenario.to, amount: persona.scenario.amount },
@@ -145,7 +195,8 @@ export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisRespon
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const detail = body?.detail ? `: ${body.detail}` : "";
-    throw new Error(`Live AWS analysis unavailable (${response.status})${detail}`);
+    console.error("analysis failed", response.status, detail);
+    throw new Error(translate("error.analysis", { status: response.status }));
   }
   return response.json();
 }
@@ -159,7 +210,23 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    console.error("request failed", response.status, detail);
+    throw new Error(translate("error.generic", { status: response.status }));
+  }
+  return response.json();
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail ? `: ${payload.detail}` : "";
+    console.error("request failed", response.status, detail);
+    throw new Error(translate("error.generic", { status: response.status }));
   }
   return response.json();
 }
@@ -169,19 +236,30 @@ async function get<T>(path: string): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";
-    throw new Error(`API request failed (${response.status})${detail}`);
+    console.error("request failed", response.status, detail);
+    throw new Error(translate("error.generic", { status: response.status }));
   }
   return response.json();
 }
 
 export const api = {
-  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message }),
-  approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk }),
-  reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject`, {}),
+  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang() }),
+  approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk, lang: getLang() }),
+  reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject?lang=${getLang()}`, {}),
   accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
   deleteAccount: async (id: string) => {
     const response = await fetch(`${API_URL}/api/accounts/${id}?user_id=${encodeURIComponent(USER_ID)}`, { method: "DELETE" });
-    if (!response.ok) throw new Error(`Could not remove account (${response.status})`);
+    if (!response.ok) throw new Error(translate("error.removeAccount", { status: response.status }));
   },
+  market: () => get<MarketStatus>("/api/market"),
+  refreshMarket: () => post<MarketStatus>("/api/market/refresh", {}),
+  resetMarket: () => post<MarketStatus>("/api/market/reset", {}),
+  portfolio: (persona: PersonaId) => get<Portfolio>(`/api/portfolio/${persona}`),
+  tradeCheck: (ticker: string, action: TradeAction) =>
+    get<TradeCheck>(`/api/trade-check/${encodeURIComponent(ticker)}?action=${action}`),
+  features: () => get<{ flags: Record<string, boolean> }>("/api/features"),
+  setFeature: (id: string, enabled: boolean) =>
+    put<{ flags: Record<string, boolean> }>(`/api/features/${id}`, { enabled }),
+  resetFeatures: () => post<{ flags: Record<string, boolean> }>("/api/features/reset", {}),
   meta: () => get<ApiMeta>("/api/meta"),
 };

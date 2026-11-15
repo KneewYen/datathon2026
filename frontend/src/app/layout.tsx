@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Montserrat } from "next/font/google";
+import { FeatureFlagsProvider } from "@/features/flags";
 import "./globals.css";
 
 const brandFont = Montserrat({
@@ -28,7 +29,7 @@ export default function RootLayout({
         className={`${brandFont.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
+        <FeatureFlagsProvider>{children}</FeatureFlagsProvider>
       </body>
     </html>
   );

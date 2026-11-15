@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from app.api.chat import router as chat_router
+from app.api.features import router as features_router
+from app.api.portfolio import router as portfolio_router
 
 load_dotenv()
 
@@ -20,10 +22,12 @@ frontend_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=frontend_origins,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
 app.include_router(chat_router, prefix="/api")
+app.include_router(portfolio_router, prefix="/api")
+app.include_router(features_router, prefix="/api")
 
 
 @app.get("/health")

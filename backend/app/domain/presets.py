@@ -12,6 +12,7 @@ PERSONAS = {
         "objective": "long-term capital growth with diversification",
         "preferences": ["AI and technology", "crypto", "diversification"],
         "starting_balance_cad": 15000,
+        "starting_cash_cad": 2000,
         "default_allocations": {"growth": 0.55, "momentum": 0.25, "dividend": 0.10, "preservation": 0.10},
     },
     "mateo": {
@@ -22,6 +23,7 @@ PERSONAS = {
         "objective": "balanced growth with stability",
         "preferences": ["ESG", "limited speculation", "diversification"],
         "starting_balance_cad": 60000,
+        "starting_cash_cad": 5000,
         "default_allocations": {"growth": 0.30, "dividend": 0.35, "momentum": 0.10, "preservation": 0.25},
     },
     "robert": {
@@ -32,6 +34,7 @@ PERSONAS = {
         "objective": "capital preservation with some growth",
         "preferences": ["quality companies", "stability", "no crypto"],
         "starting_balance_cad": 150000,
+        "starting_cash_cad": 10000,
         "default_allocations": {"preservation": 0.50, "dividend": 0.30, "growth": 0.15, "momentum": 0.05},
     },
 }

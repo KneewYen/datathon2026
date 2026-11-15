@@ -21,3 +21,6 @@ infra/samconfig.toml
 
 # OS
 .DS_Store
+
+# Runtime state written by the app (admin feature flags)
+backend/.runtime/

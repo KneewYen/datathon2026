@@ -22,6 +22,7 @@ class ExplainabilityAgent:
         governance: list[GovernanceFinding],
         assumptions: list[str],
         limitations: list[str],
+        language: str = "en",
     ) -> Explanation:
         allowed_ids = [metric.evidence_id for metric in metrics]
         packet = {
@@ -32,5 +33,6 @@ class ExplainabilityAgent:
             "assumptions": assumptions,
             "limitations": limitations,
             "allowed_evidence_ids": allowed_ids,
+            "language": language,
         }
         return Explanation.model_validate(self.synthesizer(packet))

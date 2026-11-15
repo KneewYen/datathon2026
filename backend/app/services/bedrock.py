@@ -12,6 +12,11 @@ import boto3
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
+FRENCH_INSTRUCTION = (
+    "\nWrite the answer and every limitation in Canadian French. "
+    "The no-digits rule still applies: spell out any quantity or use none."
+)
+
 SYSTEM_PROMPT = """You are the PortfolioGuard AI explainability component.
 Use only the supplied evidence. Do not calculate or repeat numeric figures, percentages, dates,
 or numbers from the user's question. The answer must contain no digits. Do not predict returns,
@@ -88,7 +93,7 @@ def synthesize(evidence_packet: Dict[str, Any]) -> Dict[str, Any]:
     def request() -> str:
         response = client().converse(
             modelId=model_id,
-            system=[{"text": SYSTEM_PROMPT}],
+            system=[{"text": SYSTEM_PROMPT + (FRENCH_INSTRUCTION if evidence_packet.get("language") == "fr" else "")}],
             messages=messages,
             inferenceConfig={"maxTokens": 500, "temperature": 0.0},
         )
