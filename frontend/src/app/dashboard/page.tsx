@@ -1,5 +1,5 @@
 "use client";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { AccountsPanel } from "@/components/dashboard/AccountsPanel";
 import { Message, type ChatMessage } from "@/components/dashboard/Message";
 import { RiskSummary } from "@/components/dashboard/RiskSummary";
@@ -7,6 +7,7 @@ import { Header } from "@/components/dashboard/Header";
 import { PillButton } from "@/components/dashboard/PillButton";
 import { DailyRecommendations } from "@/components/dashboard/DailyRecommendations";
 import { LiveAnalysisPanel } from "@/components/dashboard/LiveAnalysisPanel";
+import { InvestmentIntelligencePanel } from "@/components/dashboard/InvestmentIntelligencePanel";
 import {
   api,
   runAnalysis,
@@ -56,7 +57,6 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const analysisStarted = useRef(false);
 
   useEffect(() => {
     api.accounts().then(setAccounts).catch((reason) => {
@@ -70,7 +70,7 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
-  const executeAnalysis = useCallback(async (requestedPersona: PersonaId) => {
+  const executeAnalysis = async (requestedPersona: PersonaId) => {
     setAnalysisBusy(true);
     setAnalysisError(null);
     try {
@@ -81,13 +81,7 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
     } finally {
       setAnalysisBusy(false);
     }
-  }, []);
-
-  useEffect(() => {
-    if (!autoRun || analysisStarted.current) return;
-    analysisStarted.current = true;
-    void executeAnalysis(initialPersona);
-  }, [autoRun, executeAnalysis, initialPersona]);
+  };
 
   async function run(fn: () => Promise<ChatResponse>, userText?: string, resolveId?: string) {
     setBusy(true);
@@ -148,16 +142,25 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
 
         {/* Middle: chat + accounts */}
         <div className="min-w-0 space-y-6">
-        <LiveAnalysisPanel
-          personaId={personaId}
-          onPersonaChange={changePersona}
-          result={analysis}
-          busy={analysisBusy}
-          error={analysisError}
-          meta={meta}
-          metaError={metaError}
-          onRun={() => void executeAnalysis(personaId)}
-        />
+        <InvestmentIntelligencePanel autoRun={autoRun} />
+
+        <details className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-navy">
+            Earlier strategy-shift scenario
+          </summary>
+          <div className="border-t border-slate-200">
+            <LiveAnalysisPanel
+              personaId={personaId}
+              onPersonaChange={changePersona}
+              result={analysis}
+              busy={analysisBusy}
+              error={analysisError}
+              meta={meta}
+              metaError={metaError}
+              onRun={() => void executeAnalysis(personaId)}
+            />
+          </div>
+        </details>
 
         {/* Chat */}
         <section className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
