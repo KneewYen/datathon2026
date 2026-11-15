@@ -22,16 +22,19 @@ The flagship scenario asks:
 ## Why it is agentic
 
 ```text
-Global Orchestrator
-  → TFSA and RRSP Account Agents
-    → Growth / Momentum and Dividend / Preservation Agents
-      → deterministic AWS Lambda financial tool
+Global AI Orchestrator
+  → validated selection of TFSA and/or RRSP Account AI Orchestrators
+    → validated selection of permitted strategy agents
+      → validated selection of allowlisted deterministic tools
+        → fixed Step Functions dispatch to AWS Lambda
   → Governance Agent
   → Bedrock Explainability Agent
 ```
 
-Every delegation is typed, recorded, visible in the dashboard, and covered by
-tests. Agents that do not contribute to a request are not invoked.
+Every model decision passes through a deterministic allowlist gate before it can
+become a Step Functions Map item. Every delegation is typed, recorded, visible in
+the dashboard, and covered by tests. Agents and tools that are not selected are not
+invoked. Mandatory safety analysis is visibly labeled as policy-enforced.
 
 ## Why the result is trustworthy
 
@@ -57,8 +60,8 @@ instead of forcing one recommendation.
 
 - **Amazon S3:** encrypted, private, versioned source data.
 - **AWS Lambda:** deterministic financial calculations.
-- **AWS Step Functions:** durable hierarchy, parallel account analysis, and an
-  execution history shown live in the dashboard.
+- **AWS Step Functions:** durable, dynamic hierarchy with nested account,
+  specialist, and tool Maps plus an execution history shown live in the dashboard.
 - **Amazon Bedrock:** grounded explanation through the Converse API.
 - **IAM:** least-privilege access to the function and selected model resources.
 - **CloudWatch:** correlated structured execution logs.
@@ -72,9 +75,9 @@ an honest unavailable state instead of placeholder results.
 
 ## Status and next step
 
-The cross-account slice, AWS state machine, named Nova agents, API polling, tests,
-and dashboard are implemented and locally validated. Core AWS infrastructure and
-the earlier strategy-shift Lambda were previously verified, but the workflow update
-is not deployed. The next separately gated step is creating and reviewing a
-no-execute CloudFormation change set. Execution and the first bounded live workflow
-remain separate approvals. Bedrock has not yet been invoked.
+The cross-account slice, dynamic AWS state machine, named Nova agents, API polling,
+tests, and dashboard delegation ledger are implemented and locally validated. Core
+AWS infrastructure and the earlier strategy-shift Lambda were previously verified,
+but this workflow update is not deployed. The existing superseded change set must
+not be executed. Creating a replacement no-execute change set, executing it, and
+running the first bounded live workflow each remain separate approval gates.

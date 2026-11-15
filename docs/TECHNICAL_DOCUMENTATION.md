@@ -23,9 +23,12 @@ Browser
             └─ Cognito JWT → API Gateway HTTP API → FastAPI Lambda
                  └─ AWS Step Functions Standard
                       ├─ Global Orchestrator → Nova Lite
-                      ├─ TFSA Account Agent → Growth + Momentum → Nova Lite
-                      ├─ RRSP Account Agent → Dividend + Preservation → Nova Lite
-                      ├─ deterministic Financial Tools Lambda
+                      ├─ validated account-route Map
+                      ├─ selected Account Orchestrators → Nova Lite
+                      │    └─ validated specialist-route Map
+                      ├─ selected Strategy Agents → Nova Lite
+                      │    └─ validated authorized-tool Map + fixed Choice
+                      ├─ selected deterministic Financial Tools Lambda calls
                       │    └─ versioned Amazon S3 dataset
                       ├─ deterministic coordinator + governance Lambda
                       └─ Explainability Agent → Nova Lite
@@ -35,10 +38,13 @@ request identifiers. Step Functions retains the actual state-transition history;
 the API polls it and exposes the same execution lineage to the UI.
 ```
 
-The hierarchy is implemented as executable AWS states, not decorative labels. The
-two account branches run in parallel, each account state invokes only its assigned
-strategy states, and strategy states lead to explicitly named deterministic tool
-states. The API returns a start response immediately and the dashboard polls the
+The hierarchy is implemented as executable AWS states, not decorative labels.
+Global model output is validated into account Map items; each invoked account model
+is validated into specialist Map items; each invoked specialist model is validated
+into tool Map items. A fixed Choice state maps the four known operations to either
+the financial Lambda or the research boundary. A model cannot provide a Lambda ARN
+or arbitrary operation. Nonselected Map items do not exist and therefore do not
+execute. The API returns a start response immediately and the dashboard polls the
 Standard workflow until it returns a schema-validated final result.
 
 PortfolioGuard uses direct Bedrock Runtime `Converse` calls with the system-defined
@@ -46,6 +52,15 @@ PortfolioGuard uses direct Bedrock Runtime `Converse` calls with the system-defi
 Classic. Every named agent has an allow-list of possible delegates and operations;
 unsupported selections, numeric language-model claims, malformed JSON, or unknown
 evidence IDs fail closed.
+
+Every routing gate emits persisted delegation records containing the decision
+maker, target, model-versus-policy source, rationale, parent event ID, selection,
+actual invocation status, and evidence IDs. The dashboard renders those records
+alongside actual execution events. Mandatory holdings exposure and purchase
+simulation cannot be silently omitted: deterministic policy assigns each missing
+operation to an account-permitted specialist and labels the assignment
+`mandatory_policy`. Failed mandatory tools produce a partial account result and no
+missing evidence is invented.
 
 ### Demo authentication and bounded access
 
@@ -75,10 +90,12 @@ AWS response with locally fabricated metrics.
 
 ### Global Orchestrator
 
-The orchestrator parses typed purchase intent, selects both populated accounts,
-records every delegation, dispatches only requested typed tools, caches shared
-results, applies governance, and passes a closed evidence packet to explainability.
-It does not calculate financial values.
+The deterministic preparation step parses typed purchase intent and establishes
+candidate account scope. The Global AI Orchestrator selects account agents through
+Nova Lite. Explicit user account scope is a mandatory boundary; generic questions
+allow the model to choose one or more candidate accounts. A routing validator
+records every candidate and passes only selected/enforced account routes to the
+Step Functions Map. The orchestrator does not calculate financial values.
 
 ### Account agents
 
@@ -87,10 +104,11 @@ It does not calculate financial values.
 - **RRSP Account Agent:** coordinates the fictional RRSP comparison and discloses
   that deductions, withdrawal taxation, and personal tax outcomes are out of scope.
 
-For the flagship workflow, TFSA delegates to Growth and Momentum while RRSP
-delegates to Dividend and Capital Preservation. Each requests a distinct subset of
-exposure, market, research, and simulation operations; duplicate shared operations
-are cached but their delegated use remains visible in the trace.
+TFSA may delegate to Growth and Momentum; RRSP may delegate to Dividend and Capital
+Preservation. Only model-selected specialists execute unless deterministic safety
+coverage requires a missing specialist. Each specialist requests a subset of its
+runtime-enforced tool allowlist. Nonselected specialists and tools are persisted as
+`not_invoked` rather than inferred from a static diagram.
 
 ### Deterministic investment tools
 

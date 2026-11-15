@@ -4,7 +4,8 @@
 the Polyfinances Workshop Studio account in `us-east-1`:
 
 - Private, encrypted, versioned S3 data bucket
-- Standard Step Functions workflow with parallel TFSA/RRSP branches
+- Standard Step Functions workflow with validated nested account, specialist, and
+  authorized-tool Maps
 - Named Nova Lite orchestrator, account, strategy, and explainability agents
 - Deterministic financial-tools and coordinator Lambdas
 - FastAPI Lambda behind API Gateway HTTP API for start/status polling
@@ -14,6 +15,14 @@ the Polyfinances Workshop Studio account in `us-east-1`:
 - Fourteen-day Lambda log retention in CloudWatch Logs
 - CloudFormation-generated, least-privilege roles scoped to their exact functions,
   workflow, dataset prefix, log groups, inference profile, and destination models
+
+The global and account Bedrock outputs are untrusted inputs to deterministic
+routing gates. Step Functions iterates only validated route arrays. Tool execution
+passes through a fixed Choice over three financial operations and the research
+boundary; no model output becomes a resource ARN. The financial Lambda repeats the
+specialist/tool allowlist check at runtime. Mandatory exposure and purchase
+simulation routes are explicitly labeled as policy-enforced in the final delegation
+ledger.
 
 The template hosts FastAPI but not the Next.js frontend. The dashboard may run
 locally with `NEXT_PUBLIC_API_URL` set to the `BackendApiUrl` stack output. Local

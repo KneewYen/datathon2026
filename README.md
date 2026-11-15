@@ -25,10 +25,12 @@ dashboard as a secondary regression demo.
 
 ```text
 Next.js dashboard → FastAPI on Lambda → AWS Step Functions Standard
-                                         ├─ Global Orchestrator (Nova Lite)
-                                         ├─ TFSA + RRSP Account Agents (parallel)
-                                         │    └─ Growth / Dividend / Momentum /
-                                         │       Capital Preservation Agents (Nova Lite)
+                                         ├─ Global AI Orchestrator (Nova Lite)
+                                         │    └─ validated account route Map
+                                         ├─ selected TFSA/RRSP AI Orchestrators
+                                         │    └─ validated specialist route Map
+                                         ├─ selected strategy agents (Nova Lite)
+                                         │    └─ fixed authorized-tool Choice + Map
                                          ├─ deterministic Lambda tools → versioned S3
                                          ├─ deterministic governance
                                          └─ Explainability Agent → Nova Lite
@@ -37,8 +39,13 @@ Step Functions execution history and CloudWatch Lambda logs expose correlated
 execution details to the API and the live dashboard.
 ```
 
-The execution trace makes delegation observable. Strategy and language-model
-agents cannot create financial values; only the deterministic Lambda does so.
+Model output never supplies an ARN or unchecked AWS operation. Three deterministic
+routing gates validate account, specialist, and tool names against static allowlists;
+nested Step Functions Maps execute only selected routes. Mandatory exposure and
+purchase-risk tools are added by an explicit safety policy when omitted, and the
+persisted delegation ledger distinguishes model choices, policy choices, skipped
+capabilities, actual status, and evidence IDs. Language-model agents cannot create
+financial values; only the deterministic Lambda does so.
 
 ## Current status
 
@@ -49,6 +56,9 @@ agents cannot create financial values; only the deterministic Lambda does so.
   deterministic coordinator and financial-tool Lambdas, versioned S3, scoped IAM,
   Cognito JWT authentication, bounded API throttling, and fourteen-day CloudWatch
   log groups.
+- Account, specialist, and tool execution is dynamic: validated model selections
+  supply Map items, while fixed Choice states and runtime allowlists prevent model
+  output from becoming an arbitrary Lambda ARN or operation.
 - The reviewed AWS stack is deployed in `us-east-1`: private versioned S3 storage,
   deterministic Lambda, least-privilege execution role, and CloudWatch log group.
   The six-file dataset and manifest are uploaded with verified SHA-256 checksums;

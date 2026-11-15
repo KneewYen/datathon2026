@@ -88,8 +88,8 @@ The refreshed profile resolves to the same account and
 - zero existing API Gateway v2 HTTP APIs;
 - the local template passes `sam validate --lint`, the CloudFormation
   `ValidateTemplate` API, and a clean SAM build for Python 3.12 ARM64;
-- 51 Python tests pass, one opt-in live-AWS test is skipped, and frontend tests,
-  lint, and the production build pass.
+- 49 backend tests and 12 financial-Lambda tests pass, one opt-in live-AWS test is
+  skipped, and the two frontend tests, lint, type check, and production build pass.
 
 The template now contains nineteen application-level logical resources. Four are
 existing; fifteen are proposed additions, subject to the transformed change set:

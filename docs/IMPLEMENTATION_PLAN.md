@@ -111,6 +111,24 @@ must be reviewed and explicitly approved before execution.
 No replacement change set, artifact upload, deployment, or live service invocation
 was performed. The next authorized AWS action must be a fresh no-execute review.
 
+### Dynamic orchestration acceptance remediation — 2026-11-15
+
+- Replaced fixed strategy/tool states with nested account, specialist, and tool Map
+  states driven by validated Nova Lite selections.
+- Added deterministic routing gates for candidate account scope, per-account agent
+  allowlists, and per-specialist tool allowlists; model output never supplies an ARN.
+- Added fixed Choice dispatch, agent-runtime stage validation, and a second
+  financial-Lambda operation/agent authorization check.
+- Added mandatory exposure and purchase-simulation policy routes with explicit
+  `mandatory_policy` provenance instead of silently accepting missing risk evidence.
+- Added persisted delegation records and a dashboard ledger with actual invocation
+  status, rationale, parent event, and evidence IDs.
+- Added divergent-selection, non-invocation, unauthorized, policy-enforcement, and
+  partial-failure tests.
+
+No AWS resource, change set, deployment artifact, or live service invocation is
+authorized by this source-only remediation.
+
 ## 2. Challenge requirements that drive the design
 
 The official brief and participant deck establish these priorities:
