@@ -60,6 +60,15 @@ BAND_REASON: Dict[tuple, tuple] = {
 }
 
 
+def _custom_horizon_reason(band: str, text: str, lang: str) -> str:
+    """For a horizon the investor described in their own words (for example "retire in 10 years")."""
+    return {
+        "high": i18n.pick(lang, f"With a horizon of {text}, short-term dips matter less to your goal.", f"Avec un horizon de {text}, les reculs à court terme comptent moins pour votre objectif."),
+        "moderate": i18n.pick(lang, f"With a horizon of {text} you have time, but you also want stability.", f"Avec un horizon de {text}, vous avez du temps, mais vous voulez aussi de la stabilité."),
+        "low": i18n.pick(lang, f"With a horizon of {text}, protecting what you have matters more than chasing growth.", f"Avec un horizon de {text}, protéger ce que vous avez compte plus que de courir après la croissance."),
+    }[band]
+
+
 def _horizon_reason(band: str, years: str, lang: str) -> str:
     return {
         "high": i18n.pick(lang, f"You're investing for {years} years, so short-term dips matter less to your goal.", f"Vous investissez pour {years} ans : les reculs à court terme comptent moins pour votre objectif."),
@@ -84,6 +93,7 @@ def fit(
     position: Optional[Dict[str, Any]],
     lang: str = "en",
     risk_band: Optional[str] = None,
+    profile: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Stance, headline and reasons for this investor. None when the persona is unknown."""
     persona = PERSONAS.get(persona_id)
@@ -96,7 +106,18 @@ def fit(
     years = persona["horizon_years"]
     goal = persona["objective"] if lang == "en" else GOAL_FR[persona_id]
     risk_label = RISK_LABEL[band][0 if lang == "en" else 1]
-    header = {"id": persona_id, "name": persona["name"], "risk": risk_label, "horizon_years": years, "goal": goal}
+    profile = profile or {}
+    if profile.get("goals"):
+        goal = "; ".join(profile["goals"])
+    header = {
+        "id": persona_id,
+        "name": profile.get("name") or persona["name"],
+        "risk": risk_label,
+        "horizon_years": years,
+        "horizon_text": profile.get("horizon"),
+        "goal": goal,
+        "source": profile.get("source"),
+    }
 
     if action == "sell" and position is not None and not position["holds"]:
         return {
@@ -108,7 +129,8 @@ def fit(
 
     stance, en, fr = HOW.get((action, verdict), ("wait", "Wait and watch.", "Attendre et observer."))
     stance = OVERRIDE.get((action, verdict, band), stance)
-    why: List[str] = [_horizon_reason(band, years, lang), p(f"Your goal is {goal}.", f"Votre objectif : {goal}.")]
+    horizon_reason = _custom_horizon_reason(band, profile["horizon"], lang) if profile.get("horizon") else _horizon_reason(band, years, lang)
+    why: List[str] = [horizon_reason, p(f"Your goal is {goal}.", f"Votre objectif : {goal}.")]
     extra = BAND_REASON.get((action, verdict, band))
     if extra:
         why.append(p(*extra))

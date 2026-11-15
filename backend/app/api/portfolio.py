@@ -124,18 +124,32 @@ class InvestorChoice(BaseModel):
     persona_id: str
     account_type: Optional[str] = None
     user_id: str = "demo"
+    # The profile (by submitted_at) the client last saw; a client that is behind cannot overwrite a newer one.
+    known_profile_at: Optional[str] = None
 
 
 @router.put("/investor")
 def set_investor(body: InvestorChoice) -> Dict[str, Any]:
     """Save the selected investor and account to S3 (by the agents), so every agent reads the same one."""
-    return _agents("set_investor", body.model_dump(), body.user_id)
+    payload = body.model_dump()
+    if "known_profile_at" not in body.model_fields_set:
+        payload.pop("known_profile_at")  # an older client that does not say: behave as before
+    return _agents("set_investor", payload, body.user_id)
 
 
 @router.get("/investor")
 def get_investor(user_id: str = "demo") -> Dict[str, Any]:
     """The saved investor for this user, or 404 when none has been chosen."""
     record = _agents("get_investor", {"user_id": user_id}, user_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="no investor saved for this user")
+    return record
+
+
+@router.delete("/investor/profile")
+def clear_investor_profile(user_id: str = "demo") -> Dict[str, Any]:
+    """Forget the profile an agent submitted (the selected investor stays)."""
+    record = _agents("clear_profile", {"user_id": user_id}, user_id)
     if record is None:
         raise HTTPException(status_code=404, detail="no investor saved for this user")
     return record

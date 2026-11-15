@@ -43,6 +43,7 @@ def run(
 
     # 0. The investor: the request's choice wins and is saved to S3; with none, the saved one is read from S3.
     stored_note = ""
+    stored = None
     if user_id:
         try:
             stored = investor_store.load(user_id)
@@ -82,7 +83,8 @@ def run(
     fit = None
     if persona_id in PERSONAS:
         position = sell_guard_service.investor_position(persona_id, ticker, action, account_type, live)
-        fit = persona_fit.fit(persona_id, action, ticker, result["verdict"], position, lang, risk_band=who["risk_band"])
+        profile = stored.get("profile") if stored and stored.get("persona_id") == persona_id else None
+        fit = persona_fit.fit(persona_id, action, ticker, result["verdict"], position, lang, risk_band=who["risk_band"], profile=profile)
 
     # 4. Explainer: the pop-up warning, then the full detail, citing only the Classifier's evidence IDs
     explanation: Optional[Dict[str, Any]] = None

@@ -138,7 +138,11 @@ ACTIONS: Dict[str, Callable[[Dict[str, Any]], Any]] = {
     "trade_check": _trade_check,
     "sentiment_ask": _sentiment_ask,
     "runtime": _runtime,
-    "set_investor": lambda p: investor_store.save(p.get("user_id", "demo"), p["persona_id"], p.get("account_type")),
+    "set_investor": lambda p: investor_store.save(
+        p.get("user_id", "demo"), p["persona_id"], p.get("account_type"), p.get("profile"),
+        known_profile_at=p["known_profile_at"] if "known_profile_at" in p else investor_store.UNSET,
+    ),
+    "clear_profile": lambda p: investor_store.clear_profile(p.get("user_id", "demo")),
     "get_investor": lambda p: investor_store.load(p.get("user_id", "demo")),
 }
 

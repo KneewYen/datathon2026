@@ -80,10 +80,9 @@ export function Message({
               <div className="mt-4 rounded-md bg-white p-3 ring-1 ring-slate-200">
                 <div className="text-xs font-semibold text-slate-700">{t("fit.title", { name: d.persona_fit.persona.name })}</div>
                 <div className="mt-0.5 text-[11px] text-slate-500">
-                  {t("fit.profile", {
-                    risk: d.persona_fit.persona.risk,
-                    years: d.persona_fit.persona.horizon_years,
-                  })}
+                  {d.persona_fit.persona.horizon_text
+                    ? t("fit.profileText", { risk: d.persona_fit.persona.risk, horizon: d.persona_fit.persona.horizon_text })
+                    : t("fit.profile", { risk: d.persona_fit.persona.risk, years: d.persona_fit.persona.horizon_years })}
                 </div>
                 <div className="mt-2 flex items-start gap-2">
                   <span

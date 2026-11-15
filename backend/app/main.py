@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from app.api.chat import router as chat_router
 from app.api.features import router as features_router
+from app.api.mcp import router as mcp_router
 from app.api.portfolio import router as portfolio_router
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
@@ -42,6 +43,7 @@ async def _external_error(_: Request, exc: ExternalServiceError) -> JSONResponse
 app.include_router(chat_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
 app.include_router(features_router, prefix="/api")
+app.include_router(mcp_router)
 
 
 @app.get("/health")

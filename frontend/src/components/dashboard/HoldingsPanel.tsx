@@ -8,12 +8,14 @@ import { accountValue } from "@/lib/accountValue";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
 import { useAccounts } from "@/features/accounts";
 import { useChat } from "@/features/chat";
+import { useClaude } from "@/features/claude";
 import { useMarket } from "@/features/market";
 import { TradeWarningDialog } from "./TradeWarningDialog";
 
 export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   const { t } = useLanguage();
   const chat = useChat();
+  const claude = useClaude();
   const { live: marketLive, setLive } = useMarket();
   const persona = PERSONAS.find((p) => p.id === personaId)!;
   const [data, setData] = useState<Portfolio | null>(null);
@@ -49,9 +51,11 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   }, [personaId, accountType, marketLive]);
 
   // Tell the agents who is selected: the investor and account are saved to S3 whenever they change.
+  // Wait until the saved investor has been read, so a profile Claude just sent is applied, not overwritten.
   useEffect(() => {
-    api.setInvestor(personaId, accountType).catch(() => {}); // a failed save is repaired by the next trade check
-  }, [personaId, accountType]);
+    if (!claude.ready) return;
+    api.setInvestor(personaId, accountType, claude.profile?.submitted_at ?? null).catch(() => {}); // a failed save is repaired by the next trade check
+  }, [personaId, accountType, claude.ready, claude.profile?.submitted_at]);
 
   const refreshed = data?.refreshed ?? false;
 

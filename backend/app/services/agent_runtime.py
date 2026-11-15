@@ -20,6 +20,7 @@ from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
 USER_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+INVESTOR_ACTIONS = frozenset({"set_investor", "get_investor", "clear_profile"})
 
 
 def mode() -> str:
@@ -45,7 +46,13 @@ def call(action: str, payload: Dict[str, Any], user_id: str = "demo") -> Any:
 
     # Every call goes to the Orchestrator agent (its own AgentCore runtime), which routes it to the agent that
     # owns it: Intake, Market, Classifier or Explainer. Without it, the original single runtime is used.
-    arn = os.getenv("ORCHESTRATOR_AGENT_ARN") or os.getenv("AGENT_RUNTIME_ARN")
+    # The S3-backed investor actions can be pinned to one runtime (INVESTOR_AGENT_ARN): they keep no
+    # in-memory state, so any runtime that runs them gives the same answer. Unset, they follow the rule above.
+    arn = (
+        (os.getenv("INVESTOR_AGENT_ARN") if action in INVESTOR_ACTIONS else None)
+        or os.getenv("ORCHESTRATOR_AGENT_ARN")
+        or os.getenv("AGENT_RUNTIME_ARN")
+    )
     region = os.getenv("AWS_REGION")
     if not arn or not region:
         raise ServiceConfigurationError("AWS_REGION and AGENT_RUNTIME_ARN are required to reach the agents")

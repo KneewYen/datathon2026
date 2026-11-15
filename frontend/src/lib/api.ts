@@ -44,8 +44,39 @@ export type RuntimeInfo = {
   data: string;
 };
 
+export type McpInfo = {
+  url: string;
+  base_url: string;
+  token: string;
+  local_only: boolean;
+  stable: boolean;
+  tools: Array<{ name: string; title: string; description: string; input_schema: unknown }>;
+  example: { risk: string; horizon: string; goals: string[] };
+  server: { name: string; title: string; version: string };
+};
+
+/** What Claude submitted through the MCP connector. */
+export type ClaudeProfile = {
+  source: "mcp";
+  client?: string;
+  risk: "low" | "mid" | "high";
+  horizon: string;
+  goals: string[];
+  name?: string;
+  submitted_at: string;
+};
+
+export type InvestorRecord = {
+  persona_id: PersonaId;
+  persona_name: string;
+  account_type: string | null;
+  risk_band: "low" | "mid" | "high";
+  updated_at: string;
+  profile?: ClaudeProfile;
+};
+
 export type PersonaFit = {
-  persona: { id: string; name: string; risk: string; horizon_years: string; goal: string };
+  persona: { id: string; name: string; risk: string; horizon_years: string; horizon_text?: string | null; goal: string; source?: string | null };
   stance: "fits" | "wait" | "careful";
   headline: string;
   why: string[];
@@ -316,8 +347,24 @@ export const api = {
     if (!response.ok) throw new Error(translate("error.removeAccount", { status: response.status }));
   },
   /** Save the selected investor and account to S3 (via the agents), so every agent reads the same one. */
-  setInvestor: (persona: PersonaId, accountType?: string) =>
-    put<unknown>("/api/investor", { persona_id: persona, account_type: accountType ?? null, user_id: USER_ID }),
+  setInvestor: (persona: PersonaId, accountType?: string, knownProfileAt: string | null = null) =>
+    put<unknown>("/api/investor", {
+      persona_id: persona,
+      account_type: accountType ?? null,
+      user_id: USER_ID,
+      known_profile_at: knownProfileAt, // lets the server refuse to overwrite a newer profile from Claude
+    }),
+  mcpInfo: () => get<McpInfo>(`/api/mcp/info?user_id=${encodeURIComponent(USER_ID)}`),
+  /** The saved investor, or null when none has been chosen yet. */
+  getInvestor: async (): Promise<InvestorRecord | null> => {
+    const response = await fetch(`${API_URL}/api/investor?user_id=${encodeURIComponent(USER_ID)}`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(translate("common.requestFailed"));
+    return (await response.json()) as InvestorRecord;
+  },
+  clearClaudeProfile: async () => {
+    await fetch(`${API_URL}/api/investor/profile?user_id=${encodeURIComponent(USER_ID)}`, { method: "DELETE" });
+  },
   runtime: () => get<RuntimeInfo>("/api/runtime"),
   market: (live = false) => get<MarketStatus>(`/api/market?live=${live}`),
   refreshMarket: () => post<MarketStatus>("/api/market/refresh", {}),
