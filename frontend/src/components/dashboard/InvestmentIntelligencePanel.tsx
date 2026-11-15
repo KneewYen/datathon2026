@@ -7,6 +7,7 @@ import {
   type AccountOption,
   type ExecutionEvent,
   type InvestmentAnalysisResponse,
+  type WorkflowStartResponse,
 } from "@/lib/api";
 import { traceRows } from "@/lib/executionTrace";
 
@@ -118,14 +119,39 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
   const [result, setResult] = useState<InvestmentAnalysisResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [workflowEvents, setWorkflowEvents] = useState<ExecutionEvent[]>([]);
+  const [workflowStatus, setWorkflowStatus] = useState<string | null>(null);
   const started = useRef(false);
 
   async function analyze() {
     if (!question.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setWorkflowEvents([]);
+    setWorkflowStatus(null);
     try {
-      setResult(await api.investmentAnalysis(question.trim()));
+      const started = await api.investmentAnalysis(question.trim());
+      if (!("execution_arn" in started)) {
+        setResult(started);
+        return;
+      }
+      setResult(null);
+      setWorkflowStatus("RUNNING");
+      const workflow = started as WorkflowStartResponse;
+      for (let attempt = 0; attempt < 160; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        const status = await api.investmentAnalysisStatus(workflow.request_id);
+        setWorkflowStatus(status.status);
+        setWorkflowEvents(status.events);
+        if (status.status === "SUCCEEDED" && status.result) {
+          setResult(status.result);
+          return;
+        }
+        if (status.status !== "RUNNING") {
+          throw new Error(status.error ?? `AWS workflow ended with ${status.status}`);
+        }
+      }
+      throw new Error("AWS workflow status timed out in the browser");
     } catch (reason) {
       setResult(null);
       setError(reason instanceof Error ? reason.message : "Investment analysis failed");
@@ -195,6 +221,18 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
             {busy
               ? "The global orchestrator is delegating to TFSA, RRSP, strategy, financial-tool, governance, and explainability components."
               : "Ready with the fictional Jordan Lee account fixture. Change the amount or account scope to test another deterministic scenario."}
+          </div>
+        )}
+
+        {busy && workflowEvents.length > 0 && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4" aria-live="polite">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-navy">Live AWS execution</h2>
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-600">
+                Step Functions · {workflowStatus}
+              </span>
+            </div>
+            <ExecutionTrace events={workflowEvents} />
           </div>
         )}
 

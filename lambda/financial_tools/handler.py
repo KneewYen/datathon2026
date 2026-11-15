@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 
 try:
     from .calculations import (
@@ -31,6 +32,7 @@ def handler(event, context):
     operation = event.get("operation")
     analysis_id = event.get("analysis_id", "unknown")
     request_id = getattr(context, "aws_request_id", "local")
+    started_at = datetime.now(timezone.utc)
     logger.info(
         json.dumps(
             {
@@ -53,6 +55,25 @@ def handler(event, context):
             raise ValueError(f"unsupported operation: {operation}")
         result = calculation(event, load_dataset_from_s3())
         result["aws_request_id"] = request_id
+        result["execution_event"] = {
+            "event_id": f"tool.{operation}.{event.get('account_id', 'shared')}",
+            "parent_id": event.get("parent_event_id"),
+            "request_id": analysis_id,
+            "kind": "tool",
+            "agent": event.get("agent", "aws_financial_tools"),
+            "tool_name": operation,
+            "started_at": started_at.isoformat(),
+            "ended_at": datetime.now(timezone.utc).isoformat(),
+            "status": "completed",
+            "evidence_ids": [
+                item["evidence_id"] for item in result.get("evidence", [])
+            ],
+            "input_summary": f"Run deterministic {operation} using versioned S3 data.",
+            "output_summary": (
+                f"Completed {operation} with {len(result.get('evidence', []))} evidence records."
+            ),
+            "error": None,
+        }
         logger.info(
             json.dumps(
                 {

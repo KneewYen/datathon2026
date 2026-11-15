@@ -182,7 +182,7 @@ class ExecutionEvent(BaseModel):
     tool_name: str | None = None
     started_at: datetime
     ended_at: datetime
-    status: Literal["completed", "blocked", "failed"]
+    status: Literal["running", "completed", "blocked", "failed"]
     evidence_ids: List[str] = Field(default_factory=list)
     input_summary: str
     output_summary: str
@@ -248,3 +248,26 @@ class InvestmentAnalysisResponse(BaseModel):
     disclaimer: str = (
         "Simulation only. Fictional accounts. Not financial advice. No trade is executed."
     )
+
+
+class WorkflowStartResponse(BaseModel):
+    request_id: str
+    execution_arn: str
+    status: Literal["RUNNING"] = "RUNNING"
+    mode: Literal["aws_step_functions"] = "aws_step_functions"
+
+
+class WorkflowStatusResponse(BaseModel):
+    request_id: str
+    execution_arn: str
+    status: Literal[
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "TIMED_OUT",
+        "ABORTED",
+        "PENDING_REDRIVE",
+    ]
+    events: List[ExecutionEvent] = Field(default_factory=list)
+    result: InvestmentAnalysisResponse | None = None
+    error: str | None = None

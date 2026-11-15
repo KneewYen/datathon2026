@@ -11,8 +11,11 @@ from app.domain.models import (
     AnalysisResponse,
     InvestmentAnalysisRequest,
     InvestmentAnalysisResponse,
+    WorkflowStartResponse,
+    WorkflowStatusResponse,
 )
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
+from app.services.step_functions import execution_status, start_execution
 
 
 router = APIRouter()
@@ -43,12 +46,35 @@ def analysis(request: AnalysisRequest) -> AnalysisResponse:
     return _run(request)
 
 
-@router.post("/investment-analysis", response_model=InvestmentAnalysisResponse)
-def investment_analysis(request: InvestmentAnalysisRequest) -> InvestmentAnalysisResponse:
+@router.post(
+    "/investment-analysis",
+    response_model=InvestmentAnalysisResponse | WorkflowStartResponse,
+    status_code=200,
+)
+def investment_analysis(
+    request: InvestmentAnalysisRequest,
+) -> InvestmentAnalysisResponse | WorkflowStartResponse:
     try:
+        if os.getenv("ORCHESTRATION_MODE", "local") == "step-functions":
+            return start_execution(request)
         return orchestrator.analyze_investment(request)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ServiceConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get(
+    "/investment-analysis/executions/{request_id}",
+    response_model=WorkflowStatusResponse,
+)
+def investment_analysis_status(request_id: str) -> WorkflowStatusResponse:
+    try:
+        return execution_status(request_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ServiceConfigurationError as exc:
@@ -118,6 +144,17 @@ def meta() -> Dict[str, Any]:
                     f"s3://{data_bucket}/{data_prefix}/"
                     if data_bucket
                     else f"{data_prefix}/ via Lambda; verified after a successful live run"
+                ),
+            },
+            "orchestration": {
+                "configured": bool(
+                    os.getenv("ORCHESTRATION_MODE") == "step-functions"
+                    and os.getenv("INVESTMENT_STATE_MACHINE_ARN")
+                ),
+                "label": "AWS Step Functions investment workflow",
+                "detail": (
+                    os.getenv("INVESTMENT_STATE_MACHINE_ARN")
+                    or "Local in-process orchestration"
                 ),
             },
         },

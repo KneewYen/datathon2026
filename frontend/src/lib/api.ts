@@ -55,6 +55,7 @@ export type ApiMeta = {
     lambda: IntegrationStatus;
     bedrock: IntegrationStatus;
     dataset: IntegrationStatus;
+    orchestration: IntegrationStatus;
   };
 };
 
@@ -80,7 +81,7 @@ export type TraceStep = {
   parent_id: string | null;
   agent: string;
   action: string;
-  status: "completed" | "blocked" | "failed";
+  status: "running" | "completed" | "blocked" | "failed";
   delegated_to: string[];
   evidence_ids: string[];
   details: Record<string, unknown>;
@@ -194,6 +195,28 @@ export type InvestmentAnalysisResponse = {
   disclaimer: string;
 };
 
+export type WorkflowStartResponse = {
+  request_id: string;
+  execution_arn: string;
+  status: "RUNNING";
+  mode: "aws_step_functions";
+};
+
+export type WorkflowStatusResponse = {
+  request_id: string;
+  execution_arn: string;
+  status:
+    | "RUNNING"
+    | "SUCCEEDED"
+    | "FAILED"
+    | "TIMED_OUT"
+    | "ABORTED"
+    | "PENDING_REDRIVE";
+  events: ExecutionEvent[];
+  result: InvestmentAnalysisResponse | null;
+  error: string | null;
+};
+
 export type AnalysisResponse = {
   analysis_id: string;
   question: string;
@@ -273,5 +296,12 @@ export const api = {
   accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
   meta: () => get<ApiMeta>("/api/meta"),
   investmentAnalysis: (question: string) =>
-    post<InvestmentAnalysisResponse>("/api/investment-analysis", { question }),
+    post<InvestmentAnalysisResponse | WorkflowStartResponse>(
+      "/api/investment-analysis",
+      { question },
+    ),
+  investmentAnalysisStatus: (requestId: string) =>
+    get<WorkflowStatusResponse>(
+      `/api/investment-analysis/executions/${encodeURIComponent(requestId)}`,
+    ),
 };

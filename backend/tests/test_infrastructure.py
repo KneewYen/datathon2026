@@ -48,7 +48,7 @@ def test_workshop_defaults_are_fixed_to_approved_region_and_model() -> None:
     )
 
 
-def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> None:
+def test_workshop_stack_creates_only_unnamed_scoped_execution_roles() -> None:
     template = load_template()
     resources = template["Resources"]
     iam_resources = [
@@ -56,7 +56,9 @@ def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> 
     ]
     role = resources["FinancialToolsExecutionRole"]
 
-    assert iam_resources == [role]
+    assert len(iam_resources) == 5
+    assert all(item["Type"] == "AWS::IAM::Role" for item in iam_resources)
+    assert all("RoleName" not in item["Properties"] for item in iam_resources)
     assert role["Type"] == "AWS::IAM::Role"
     assert "RoleName" not in role["Properties"]
     assert role["Properties"]["Policies"][0]["PolicyDocument"]["Statement"][0][
@@ -65,6 +67,14 @@ def test_workshop_stack_creates_one_unnamed_least_privilege_execution_role() -> 
     assert resources["FinancialToolsFunction"]["Properties"]["Role"] == {
         "GetAtt": "FinancialToolsExecutionRole.Arn"
     }
+    assert resources["InvestmentAnalysisStateMachine"]["Properties"]["Type"] == "STANDARD"
+    assert resources["WorkflowAgentFunction"]["Properties"]["Role"] == {
+        "GetAtt": "WorkflowAgentExecutionRole.Arn"
+    }
+    state_actions = resources["InvestmentWorkflowExecutionRole"]["Properties"][
+        "Policies"
+    ][0]["PolicyDocument"]["Statement"][0]["Action"]
+    assert state_actions == "lambda:InvokeFunction"
 
 
 def test_bedrock_policy_lists_every_us_nova_lite_destination() -> None:

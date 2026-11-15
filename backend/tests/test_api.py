@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app import store
 from app.services.errors import ExternalServiceError
+from app.domain.models import WorkflowStartResponse
 
 
 def test_health_contract() -> None:
@@ -88,6 +89,30 @@ def test_investment_analysis_returns_typed_clarification_without_calling_aws() -
     assert payload["intent"] is None
     assert payload["research"]["provider"] == "not-invoked"
     assert payload["trace"][0]["status"] == "blocked"
+
+
+def test_investment_analysis_starts_step_functions_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr(
+        "app.api.chat.start_execution",
+        lambda _request: WorkflowStartResponse(
+            request_id="2f41ce18-57d5-4921-a4d1-796c68187444",
+            execution_arn=(
+                "arn:aws:states:us-east-1:010928180049:execution:"
+                "portfolioguard-workshop-investment-analysis:"
+                "2f41ce18-57d5-4921-a4d1-796c68187444"
+            ),
+        ),
+    )
+
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Should I buy $5,000 CAD of NVIDIA?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["mode"] == "aws_step_functions"
+    assert response.json()["status"] == "RUNNING"
 
 
 def test_meta_reports_configuration_without_calling_aws(monkeypatch) -> None:
