@@ -179,6 +179,35 @@ def test_named_bedrock_agent_accepts_only_allowed_capabilities(monkeypatch) -> N
         )
 
 
+def test_named_bedrock_agent_withholds_numeric_rationale_but_keeps_safe_routing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("BEDROCK_MODEL_ID", "us.amazon.nova-lite-v1:0")
+
+    result = invoke_named_agent(
+        "global_orchestrator",
+        {"question": "Compare the fictional accounts."},
+        request_id="2f41ce18-57d5-4921-a4d1-796c68187444",
+        parent_id="workflow.start",
+        bedrock_client=FakeBedrock(
+            {
+                "summary": "Review both accounts for a 5000 dollar purchase.",
+                "activated_agents": ["tfsa_account_agent", "rrsp_account_agent"],
+                "requested_operations": [],
+            }
+        ),
+    )
+
+    assert result["activated_agents"] == [
+        "tfsa_account_agent",
+        "rrsp_account_agent",
+    ]
+    assert result["summary_policy"] == "numeric_rationale_withheld"
+    assert result["finding"]["summary_policy"] == "numeric_rationale_withheld"
+    assert not any(character.isdigit() for character in result["finding"]["summary"])
+    assert "withheld" in result["finding"]["summary"]
+
+
 def test_state_machine_routes_only_validated_dynamic_accounts_agents_and_tools() -> None:
     definition = json.loads(
         (ROOT / "infra" / "workflows" / "investment_analysis.asl.json").read_text()

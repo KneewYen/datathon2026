@@ -89,6 +89,14 @@ agents and operations. The JSON shape is:
 {"summary":"qualitative finding without digits","activated_agents":[],"requested_operations":[]}.
 """
 
+NUMERIC_SUMMARY_FALLBACK = (
+    "The model returned a permitted routing decision, but its numeric rationale was withheld "
+    "by deterministic governance policy."
+)
+EMPTY_SUMMARY_FALLBACK = (
+    "The model returned a permitted routing decision without a usable qualitative rationale."
+)
+
 
 def _client():
     region = os.getenv("AWS_REGION")
@@ -155,10 +163,6 @@ def invoke_named_agent(
     summary = document.get("summary")
     activated_agents = document.get("activated_agents", [])
     requested_operations = document.get("requested_operations", [])
-    if not isinstance(summary, str) or not summary.strip() or re.search(r"\d", summary):
-        raise ExternalServiceError(
-            f"Bedrock agent {role} returned an unsupported numeric or empty summary"
-        )
     if not isinstance(activated_agents, list) or not set(activated_agents).issubset(
         definition.allowed_agents
     ):
@@ -167,10 +171,20 @@ def invoke_named_agent(
         requested_operations
     ).issubset(definition.allowed_operations):
         raise ExternalServiceError(f"Bedrock agent {role} selected an unsupported operation")
+    if not isinstance(summary, str) or not summary.strip():
+        safe_summary = EMPTY_SUMMARY_FALLBACK
+        summary_policy = "empty_rationale_replaced"
+    elif re.search(r"\d", summary):
+        safe_summary = NUMERIC_SUMMARY_FALLBACK
+        summary_policy = "numeric_rationale_withheld"
+    else:
+        safe_summary = summary.strip()
+        summary_policy = "model_rationale_accepted"
     finding = {
         "agent": definition.name,
         "role": definition.responsibility,
-        "summary": summary.strip(),
+        "summary": safe_summary,
+        "summary_policy": summary_policy,
         "requested_operations": requested_operations,
         "evidence_ids": [],
     }
@@ -184,13 +198,14 @@ def invoke_named_agent(
         ended_at=datetime.now(timezone.utc),
         status="completed",
         input_summary=definition.responsibility,
-        output_summary=summary.strip(),
+        output_summary=safe_summary,
     )
     return {
         "role": role,
         "finding": finding,
         "activated_agents": activated_agents,
         "requested_operations": requested_operations,
+        "summary_policy": summary_policy,
         "model_id": model_id,
         "event": event.model_dump(mode="json"),
     }
