@@ -25,7 +25,11 @@ class StrategyShift(BaseModel):
 
 class AnalysisRequest(BaseModel):
     persona_id: PersonaId = "amira"
-    question: str = "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?"
+    question: str = Field(
+        default="Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?",
+        min_length=3,
+        max_length=500,
+    )
     account_type: AccountType = "TFSA"
     base_currency: Literal["CAD"] = "CAD"
     strategy_allocations: Dict[StrategyName, float] = Field(
@@ -144,11 +148,20 @@ class AnalysisResponse(BaseModel):
 
 
 class InvestmentAnalysisRequest(BaseModel):
-    question: str = (
-        "I'm thinking of buying $5,000 CAD of NVIDIA. How would that affect my risk "
-        "across my TFSA and RRSP?"
+    question: str = Field(
+        default=(
+            "I'm thinking of buying $5,000 CAD of NVIDIA. How would that affect my risk "
+            "across my TFSA and RRSP?"
+        ),
+        min_length=3,
+        max_length=500,
     )
-    investor_id: str = "investor-demo-001"
+    investor_id: str = Field(
+        default="investor-demo-001",
+        min_length=3,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+    )
     start_date: date = date(2023, 11, 13)
     end_date: date = date(2026, 11, 12)
 

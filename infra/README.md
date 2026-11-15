@@ -8,6 +8,9 @@ the Polyfinances Workshop Studio account in `us-east-1`:
 - Named Nova Lite orchestrator, account, strategy, and explainability agents
 - Deterministic financial-tools and coordinator Lambdas
 - FastAPI Lambda behind API Gateway HTTP API for start/status polling
+- Cognito JWT authorization using a public browser client and PKCE
+- API stage throttling at one request/second with a burst of two, plus a
+  three-minute workflow timeout
 - Fourteen-day Lambda log retention in CloudWatch Logs
 - CloudFormation-generated, least-privilege roles scoped to their exact functions,
   workflow, dataset prefix, log groups, inference profile, and destination models
@@ -15,6 +18,14 @@ the Polyfinances Workshop Studio account in `us-east-1`:
 The template hosts FastAPI but not the Next.js frontend. The dashboard may run
 locally with `NEXT_PUBLIC_API_URL` set to the `BackendApiUrl` stack output. Local
 FastAPI remains available with `ORCHESTRATION_MODE=local` for development.
+
+The deployed financial Lambda also supports `market_status`, `portfolio_snapshot`,
+`trade_check`, `sentiment_summary`, `score_headlines`, `market_agent`,
+`classifier_agent`, and `investor_position`. The reconciled template preserves its
+120-second timeout, concurrency of five, all six dataset/model environment variables,
+manifest-validated `simulated/v1` reads, writes limited to two scored-news keys,
+and Nova Lite inference-profile permissions. The new NVIDIA operations share the
+same dispatcher without changing established legacy response shapes.
 
 ## Deployment status and next gate
 
@@ -28,6 +39,11 @@ and obtain explicit approval. The remaining approval gates are:
 2. Change-set execution
 3. One bounded end-to-end Step Functions/Nova/Lambda acceptance run
 4. Any dataset replacement, additional invocation, or cleanup
+
+`samcli-deploy1794769828` is retained only as an audit identifier and must not be
+recreated or executed. CloudFormation no longer lists it; its reviewed template
+would remove deployed market/headline configuration and permissions.
+A reconciled replacement change set requires separate authorization.
 
 Read-only inspection found no suitable existing application execution role. IAM
 simulation confirms that `WSParticipantRole` may create, configure, pass, and later

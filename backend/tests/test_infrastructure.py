@@ -77,6 +77,92 @@ def test_workshop_stack_creates_only_unnamed_scoped_execution_roles() -> None:
     assert state_actions == "lambda:InvokeFunction"
 
 
+def test_financial_lambda_preserves_deployed_market_contract() -> None:
+    template = load_template()
+    resources = template["Resources"]
+    function = resources["FinancialToolsFunction"]["Properties"]
+    role = resources["FinancialToolsExecutionRole"]["Properties"]
+    statements = role["Policies"][0]["PolicyDocument"]["Statement"]
+    variables = {
+        **template["Globals"]["Function"]["Environment"]["Variables"],
+        **function["Environment"]["Variables"],
+    }
+
+    assert function["Timeout"] == 120
+    assert function["ReservedConcurrentExecutions"] == 5
+    assert set(variables) == {
+        "DATA_BUCKET",
+        "DATA_PREFIX",
+        "DATASET_ID",
+        "MARKET_PREFIX",
+        "MARKET_DATASET_ID",
+        "BEDROCK_MODEL_ID",
+    }
+    assert {item["Sid"] for item in statements} == {
+        "ReadPortfolioGuardDataset",
+        "WritePortfolioGuardLambdaLogs",
+        "ReadSimulatedMarketData",
+        "WriteScoredHeadlinesOnly",
+        "InvokeNovaLiteInferenceProfile",
+        "InvokeNovaLiteDestinationModels",
+    }
+    write = next(item for item in statements if item["Sid"] == "WriteScoredHeadlinesOnly")
+    assert write["Action"] == "s3:PutObject"
+    assert len(write["Resource"]) == 2
+
+
+def test_bedrock_destination_permissions_require_the_approved_profile() -> None:
+    resources = load_template()["Resources"]
+    for role_name in (
+        "FinancialToolsExecutionRole",
+        "WorkflowAgentExecutionRole",
+        "BackendApiExecutionRole",
+    ):
+        statements = resources[role_name]["Properties"]["Policies"][0][
+            "PolicyDocument"
+        ]["Statement"]
+        destination = next(
+            item for item in statements if "Destination" in item.get("Sid", "")
+        )
+        assert destination["Action"] == "bedrock:InvokeModel"
+        assert destination["Condition"]["StringEquals"] == {
+            "bedrock:InferenceProfileArn": {
+                "Sub": "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
+            }
+        }
+
+
+def test_http_api_requires_cognito_jwt_and_has_demo_throttling() -> None:
+    resources = load_template()["Resources"]
+    api = resources["BackendHttpApi"]["Properties"]
+    client = resources["DemoUserPoolClient"]["Properties"]
+
+    assert api["Auth"]["DefaultAuthorizer"] == "CognitoJwtAuthorizer"
+    assert api["DefaultRouteSettings"] == {
+        "DetailedMetricsEnabled": False,
+        "ThrottlingBurstLimit": 2,
+        "ThrottlingRateLimit": 1,
+    }
+    assert api["CorsConfiguration"]["AllowOrigins"] == [{"Ref": "FrontendOrigin"}]
+    assert api["CorsConfiguration"]["AllowHeaders"] == [
+        "authorization",
+        "content-type",
+    ]
+    assert client["GenerateSecret"] is False
+    assert client["AllowedOAuthFlows"] == ["code"]
+    assert client["AllowedOAuthScopes"] == ["openid", "email"]
+    assert resources["DemoUserPool"]["Properties"]["AdminCreateUserConfig"] == {
+        "AllowAdminCreateUserOnly": True
+    }
+
+
+def test_standard_workflow_has_a_bounded_execution_timeout() -> None:
+    definition = json.loads(
+        (ROOT / "infra" / "workflows" / "investment_analysis.asl.json").read_text()
+    )
+    assert definition["TimeoutSeconds"] == 180
+
+
 def test_bedrock_policy_lists_every_us_nova_lite_destination() -> None:
     policy = json.loads(CALLER_POLICY_PATH.read_text())
     text = json.dumps(policy)

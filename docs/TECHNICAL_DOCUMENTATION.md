@@ -20,7 +20,7 @@ provenance, governance findings, and an observable agent trace.
 Browser
   └─ Next.js dashboard
        └─ POST /api/investment-analysis
-            └─ API Gateway HTTP API → FastAPI Lambda
+            └─ Cognito JWT → API Gateway HTTP API → FastAPI Lambda
                  └─ AWS Step Functions Standard
                       ├─ Global Orchestrator → Nova Lite
                       ├─ TFSA Account Agent → Growth + Momentum → Nova Lite
@@ -46,6 +46,26 @@ PortfolioGuard uses direct Bedrock Runtime `Converse` calls with the system-defi
 Classic. Every named agent has an allow-list of possible delegates and operations;
 unsupported selections, numeric language-model claims, malformed JSON, or unknown
 evidence IDs fail closed.
+
+### Demo authentication and bounded access
+
+The AWS endpoint uses API Gateway's native JWT authorizer with a Cognito issuer.
+The Next.js client performs Authorization Code + PKCE against a public Cognito app
+client (`GenerateSecret: false`). The PKCE verifier and access token live only in
+browser session storage; no reusable secret or AWS credential is compiled into the
+frontend. The access token expires after sixty minutes.
+
+Local development remains simple: when the four Cognito public configuration
+values are absent, the frontend calls local FastAPI without an authorization
+header. In the AWS demo configuration, the dashboard is gated until sign-in and
+every API request carries the access token. API Gateway validates issuer and
+audience before invoking Lambda.
+
+API stage throttling is one request per second with burst two. The API Lambda has
+reserved concurrency two, the financial Lambda retains its deployed concurrency
+five, and the Standard workflow has a 180-second execution timeout. Pydantic limits
+question length and investor identifiers, while production error responses do not
+return provider exception strings or internal ARNs.
 
 Production code calls real AWS SDK clients. Missing AWS configuration or failed
 cloud calls return a clear service error. The dashboard does not replace a failed
@@ -234,6 +254,15 @@ The locally validated, not-yet-deployed SAM update adds:
 - four additional unnamed least-privilege roles for the API, Step Functions,
   coordinator, and Bedrock agent runtime;
 - three additional fourteen-day Lambda log groups.
+- Cognito user pool, public PKCE client, managed-login domain, JWT authorizer, and
+  API throttling.
+
+The update also reconciles the exact deployed financial-tools dispatcher. The
+market/headline operations—including the split `market_agent`, `classifier_agent`,
+and `investor_position` contracts—all six dataset/model environment variables,
+two-key scored-news write boundary, 120-second timeout, concurrency five, and
+inference-profile permissions are preserved alongside the new investment
+calculations.
 
 The workshop configuration is fixed to `us-east-1` and the system-defined
 `us.amazon.nova-lite-v1:0` profile. IAM must allow its profile ARN plus Nova Lite in

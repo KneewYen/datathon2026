@@ -8,6 +8,7 @@ import { PillButton } from "@/components/dashboard/PillButton";
 import { DailyRecommendations } from "@/components/dashboard/DailyRecommendations";
 import { LiveAnalysisPanel } from "@/components/dashboard/LiveAnalysisPanel";
 import { InvestmentIntelligencePanel } from "@/components/dashboard/InvestmentIntelligencePanel";
+import { AuthGate } from "@/components/AuthGate";
 import {
   api,
   runAnalysis,
@@ -39,7 +40,7 @@ function personaFrom(value: string | undefined): PersonaId {
   return value === "mateo" || value === "robert" ? value : "amira";
 }
 
-export default function DashboardPage({ searchParams }: { searchParams: SearchParams }) {
+function DashboardContent({ searchParams }: { searchParams: SearchParams }) {
   const query = use(searchParams);
   const initialPersona = personaFrom(first(query.persona));
   const autoRun = first(query.run) === "1";
@@ -234,5 +235,13 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
         </p>
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage({ searchParams }: { searchParams: SearchParams }) {
+  return (
+    <AuthGate>
+      <DashboardContent searchParams={searchParams} />
+    </AuthGate>
   );
 }

@@ -20,6 +20,13 @@ Parameters:
   DatasetId:
     Type: String
     Default: alphaforge-starter-v1
+  MarketPrefix:
+    Type: String
+    Default: simulated/v1
+    Description: S3 prefix holding the simulated market prices and headlines
+  MarketDatasetId:
+    Type: String
+    Default: simulated-market-v1
   BedrockModelId:
     Type: String
     Default: us.amazon.nova-lite-v1:0
@@ -29,6 +36,14 @@ Parameters:
     Type: String
     Default: http://localhost:3000
     Description: Browser origin permitted to call the PortfolioGuard HTTP API
+  FrontendAuthCallbackUrl:
+    Type: String
+    Default: http://localhost:3000/auth/callback
+    Description: Exact OAuth callback URL for the demo browser client
+  FrontendLogoutUrl:
+    Type: String
+    Default: http://localhost:3000
+    Description: Exact post-logout URL for the demo browser client
 
 Globals:
   Function:
@@ -80,7 +95,7 @@ Resources:
   FinancialToolsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Least-privilege execution role for PortfolioGuard financial tools
+      Description: Least-privilege execution role for PortfolioGuard financial tools and headline scoring
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -89,7 +104,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ReadVersionedPortfolioGuardDatasetAndWriteLogs
+        - PolicyName: ReadVersionedPortfolioGuardDataScoreHeadlinesAndWriteLogs
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -106,6 +121,32 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub >-
                   arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/portfolioguard-${Environment}-financial-tools:*
+              - Sid: ReadSimulatedMarketData
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${DataBucket.Arn}/${MarketPrefix}/*
+              - Sid: WriteScoredHeadlinesOnly
+                Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/current/news_scored.csv
+                  - !Sub ${DataBucket.Arn}/${MarketPrefix}/marketchange/news_scored.csv
+              - Sid: InvokeNovaLiteInferenceProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeNovaLiteDestinationModels
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
       Tags:
         - Key: Project
           Value: PortfolioGuardAI
@@ -120,12 +161,16 @@ Resources:
       FunctionName: !Sub portfolioguard-${Environment}-financial-tools
       CodeUri: ../lambda/financial_tools/
       Handler: handler.handler
-      Description: Deterministic portfolio calculations using versioned S3 market data
-      ReservedConcurrentExecutions: 2
+      Description: Portfolio and trade calculations plus headline classification, using versioned S3 market data
+      Timeout: 120
+      ReservedConcurrentExecutions: 5
       Role: !GetAtt FinancialToolsExecutionRole.Arn
       Environment:
         Variables:
           DATA_BUCKET: !Ref DataBucket
+          MARKET_PREFIX: !Ref MarketPrefix
+          MARKET_DATASET_ID: !Ref MarketDatasetId
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
 
   FinancialToolsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -159,11 +204,17 @@ Resources:
               - Sid: InvokeApprovedNovaProfile
                 Effect: Allow
                 Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeApprovedNovaDestinations
+                Effect: Allow
+                Action: bedrock:InvokeModel
                 Resource:
-                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
               - Sid: WriteAgentLogs
                 Effect: Allow
                 Action:
@@ -296,14 +347,85 @@ Resources:
         Environment: !Ref Environment
         ManagedBy: AWS-SAM
 
+  DemoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub portfolioguard-${Environment}-demo-users
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 1
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      UserPoolTags:
+        Project: PortfolioGuardAI
+        Environment: !Ref Environment
+        ManagedBy: AWS-SAM
+
+  DemoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub portfolioguard-${Environment}-browser
+      UserPoolId: !Ref DemoUserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email]
+      CallbackURLs:
+        - !Ref FrontendAuthCallbackUrl
+      LogoutURLs:
+        - !Ref FrontendLogoutUrl
+      SupportedIdentityProviders: [COGNITO]
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  DemoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub portfolioguard-${AWS::AccountId}-${Environment}
+      UserPoolId: !Ref DemoUserPool
+
   BackendHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref Environment
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: false
+        ThrottlingBurstLimit: 2
+        ThrottlingRateLimit: 1
+      Auth:
+        DefaultAuthorizer: CognitoJwtAuthorizer
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${DemoUserPool}
+              audience:
+                - !Ref DemoUserPoolClient
       CorsConfiguration:
         AllowOrigins:
           - !Ref FrontendOrigin
         AllowHeaders:
+          - authorization
           - content-type
         AllowMethods:
           - GET
@@ -348,11 +470,17 @@ Resources:
               - Sid: InvokeApprovedNovaProfile
                 Effect: Allow
                 Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
+              - Sid: InvokeApprovedNovaDestinations
+                Effect: Allow
+                Action: bedrock:InvokeModel
                 Resource:
-                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}
               - Sid: WriteApiLogs
                 Effect: Allow
                 Action:
@@ -427,3 +555,12 @@ Outputs:
     Value: !GetAtt WorkflowAgentFunction.Arn
   WorkflowCoordinatorFunctionArn:
     Value: !GetAtt WorkflowCoordinatorFunction.Arn
+  DemoUserPoolId:
+    Description: Cognito user pool for the short-lived authenticated demo
+    Value: !Ref DemoUserPool
+  DemoUserPoolClientId:
+    Description: Public PKCE browser client ID; this is not a secret
+    Value: !Ref DemoUserPoolClient
+  DemoAuthDomain:
+    Description: Cognito managed-login domain used by the browser PKCE flow
+    Value: !Sub https://${DemoUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com

@@ -1,5 +1,6 @@
 {
   "Comment": "PortfolioGuard AI cross-account investment intelligence workflow",
+  "TimeoutSeconds": 180,
   "StartAt": "Prepare Investment Request",
   "States": {
     "Prepare Investment Request": {

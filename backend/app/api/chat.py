@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import logging
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.orchestrator import GlobalOrchestrator
 from app.domain.models import (
@@ -20,25 +21,40 @@ from app.services.step_functions import execution_status, start_execution
 
 router = APIRouter()
 orchestrator = GlobalOrchestrator()
+logger = logging.getLogger(__name__)
 
 
 class ChatRequest(BaseModel):
     persona_id: Optional[str] = None
-    user_id: str = "demo"
-    message: str
+    user_id: str = Field(default="demo", min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+    message: str = Field(min_length=1, max_length=500)
 
 
 class ApproveRequest(BaseModel):
-    risk: Optional[str] = None
+    risk: Optional[str] = Field(default=None, max_length=50)
+
+
+def _safe_detail(local_detail: str, production_detail: str) -> str:
+    if os.getenv("ORCHESTRATION_MODE", "local") == "local":
+        return local_detail
+    return production_detail
 
 
 def _run(request: AnalysisRequest) -> AnalysisResponse:
     try:
         return orchestrator.run(request)
     except ServiceConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.warning("AWS analysis configuration error: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=_safe_detail(str(exc), "AWS analysis is not configured"),
+        ) from exc
     except ExternalServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        logger.exception("AWS analysis failed")
+        raise HTTPException(
+            status_code=502,
+            detail=_safe_detail(str(exc), "AWS analysis is temporarily unavailable"),
+        ) from exc
 
 
 @router.post("/analysis", response_model=AnalysisResponse)
@@ -63,9 +79,17 @@ def investment_analysis(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ServiceConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.warning("Investment workflow configuration error: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=_safe_detail(str(exc), "Investment workflow is not configured"),
+        ) from exc
     except ExternalServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        logger.exception("Investment workflow failed to start")
+        raise HTTPException(
+            status_code=502,
+            detail=_safe_detail(str(exc), "Investment workflow is temporarily unavailable"),
+        ) from exc
 
 
 @router.get(
@@ -78,9 +102,17 @@ def investment_analysis_status(request_id: str) -> WorkflowStatusResponse:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ServiceConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.warning("Investment workflow status configuration error: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=_safe_detail(str(exc), "Investment workflow is not configured"),
+        ) from exc
     except ExternalServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        logger.exception("Investment workflow status lookup failed")
+        raise HTTPException(
+            status_code=502,
+            detail=_safe_detail(str(exc), "Investment workflow status is temporarily unavailable"),
+        ) from exc
 
 
 @router.post("/chat")

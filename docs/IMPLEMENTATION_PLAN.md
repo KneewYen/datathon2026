@@ -1,6 +1,6 @@
 # PortfolioGuard AI implementation plan
 
-**Status:** AWS-owned orchestration implemented and validated locally; change-set creation, deployment, and live Bedrock verification require separate approval
+**Status:** AWS-owned orchestration reconciled with deployed market/headline tools and protected by Cognito JWT; a replacement change set requires separate approval
 **Audit date:** 2026-11-15
 **Repository baseline:** `origin/nicolas-implementation` at `ac50d84`
 **Implementation branch:** `feature/multi-agent-investment-intelligence`
@@ -90,6 +90,26 @@ fail closed for live results.
 No new resource has been created and neither Lambda nor Bedrock has been invoked
 for this milestone. The next gate is a no-execute CloudFormation change set that
 must be reviewed and explicitly approved before execution.
+
+### Deployment-blocker remediation — 2026-11-15
+
+- Marked `samcli-deploy1794769828` unsafe and prohibited from execution.
+- Recovered and reviewed the exact deployed financial Lambda source package through
+  read-only AWS APIs; no code was inferred from `main`.
+- Repeated that recovery after an external financial-Lambda-only stack update and
+  preserved the newly deployed `market_agent`, `classifier_agent`, and
+  `investor_position` contracts plus all six environment variables.
+- Reconciled all deployed market/headline operations with the new NVIDIA tools and
+  added compatibility regression coverage.
+- Preserved live market parameters, narrow S3 reads/writes, Nova profile access,
+  timeout, concurrency, and handler response compatibility.
+- Replaced anonymous API access with Cognito JWT authorization and browser PKCE;
+  added throttling, a workflow deadline, stronger request validation, and safe
+  production errors.
+- Added inference-profile conditions to every Nova destination-model IAM grant.
+
+No replacement change set, artifact upload, deployment, or live service invocation
+was performed. The next authorized AWS action must be a fresh no-execute review.
 
 ## 2. Challenge requirements that drive the design
 

@@ -47,7 +47,8 @@ agents cannot create financial values; only the deterministic Lambda does so.
 - AWS SAM now defines the complete AWS-hosted path: HTTP API, FastAPI Lambda,
   Standard Step Functions workflow, constrained Bedrock agent Lambda,
   deterministic coordinator and financial-tool Lambdas, versioned S3, scoped IAM,
-  and fourteen-day CloudWatch log groups.
+  Cognito JWT authentication, bounded API throttling, and fourteen-day CloudWatch
+  log groups.
 - The reviewed AWS stack is deployed in `us-east-1`: private versioned S3 storage,
   deterministic Lambda, least-privilege execution role, and CloudWatch log group.
   The six-file dataset and manifest are uploaded with verified SHA-256 checksums;
@@ -55,6 +56,11 @@ agents cannot create financial values; only the deterministic Lambda does so.
   Bedrock has not yet been invoked. The newly defined orchestration resources and
   investment operations are locally built and validated but are not deployed;
   they require a separately reviewed and approved CloudFormation change set.
+- The first orchestration change set, `samcli-deploy1794769828`, was rejected and
+  must not be recreated or executed: review exposed a deployed market/headline
+  compatibility regression. CloudFormation no longer lists that change set.
+  This branch now reconciles the recovered deployed operation package with the new
+  NVIDIA calculations, but no replacement change set has been authorized.
 - Advanced VaR/CVaR, broader momentum analytics, and monitoring dashboards remain
   intentionally deferred until the primary scenario is proven end to end.
 
@@ -114,6 +120,21 @@ Backend configuration is documented in `backend/.env.example`:
 | `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call FastAPI |
 | `ORCHESTRATION_MODE` | `local` locally; `step-functions` in AWS | Selects in-process development or AWS-owned execution |
 | `INVESTMENT_STATE_MACHINE_ARN` | CloudFormation `InvestmentStateMachineArn` output | Standard workflow started and polled by FastAPI |
+
+The AWS demo API uses a Cognito JWT authorizer. The browser uses OAuth Authorization
+Code with PKCE and a public app client, so there is no client secret to embed. After
+an approved deployment, configure these non-secret frontend values from stack outputs:
+
+| Frontend variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_COGNITO_DOMAIN` | CloudFormation `DemoAuthDomain` output |
+| `NEXT_PUBLIC_COGNITO_CLIENT_ID` | `DemoUserPoolClientId` output |
+| `NEXT_PUBLIC_COGNITO_REDIRECT_URI` | Exact approved callback; locally `http://localhost:3000/auth/callback` |
+| `NEXT_PUBLIC_COGNITO_LOGOUT_URI` | Exact approved logout URL; locally `http://localhost:3000` |
+
+Leave these blank for local FastAPI development. Access tokens are stored only in
+browser session storage and expire after sixty minutes. Temporary AWS credentials
+and reusable secrets never enter the frontend bundle.
 
 The frontend uses one API base URL, `NEXT_PUBLIC_API_URL`, defaulting to
 `http://localhost:8000` in `frontend/.env.example`. The app workspace uses that

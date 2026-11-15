@@ -76,6 +76,34 @@ def test_analysis_maps_live_aws_failure_to_bad_gateway(monkeypatch) -> None:
     assert response.json()["detail"] == "financial Lambda failed: unavailable"
 
 
+def test_aws_hosted_api_does_not_expose_provider_error_details(monkeypatch) -> None:
+    def fail(_request):
+        raise ExternalServiceError(
+            "AccessDenied on arn:aws:states:us-east-1:010928180049:stateMachine:internal"
+        )
+
+    monkeypatch.setenv("ORCHESTRATION_MODE", "step-functions")
+    monkeypatch.setattr("app.api.chat.start_execution", fail)
+
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Should I buy $5,000 CAD of NVIDIA?"},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Investment workflow is temporarily unavailable"
+    assert "arn:aws" not in response.text
+
+
+def test_investment_question_length_is_bounded() -> None:
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "x" * 501},
+    )
+
+    assert response.status_code == 422
+
+
 def test_investment_analysis_returns_typed_clarification_without_calling_aws() -> None:
     response = TestClient(app).post(
         "/api/investment-analysis",

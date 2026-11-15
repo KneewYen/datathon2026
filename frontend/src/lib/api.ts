@@ -1,4 +1,5 @@
 import type { PersonaId } from "./personas";
+import { apiAuthorizationHeader } from "./auth";
 
 export type Proposal = {
   id: string;
@@ -250,7 +251,7 @@ export const INVESTMENT_QUESTION =
 export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
   const response = await fetch(`${API_URL}/api/analysis`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...apiAuthorizationHeader() },
     body: JSON.stringify({
       persona_id,
       question: DEMO_QUESTION,
@@ -268,7 +269,7 @@ export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisRespon
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...apiAuthorizationHeader() },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -280,7 +281,9 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`);
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: apiAuthorizationHeader(),
+  });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail ? `: ${payload.detail}` : "";

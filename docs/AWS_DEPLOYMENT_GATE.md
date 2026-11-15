@@ -2,8 +2,9 @@
 
 **Verification date:** 2026-11-15
 **Status:** Existing four-resource stack, dataset, and one prior Lambda acceptance
-run are verified. The Step Functions/API/Bedrock-agent update is built locally but
-not deployed; no-execute change-set creation requires explicit approval.
+run are verified. The first orchestration change set is unsafe and prohibited from
+execution. Compatibility/security fixes are local only; a replacement no-execute
+change set requires explicit approval.
 **Region:** `us-east-1`
 **Profile:** `portfolioguard-workshop`
 **Account:** `010928180049`
@@ -11,6 +12,70 @@ not deployed; no-execute change-set creation requires explicit approval.
 
 Temporary credentials, access keys, secret keys, and session tokens must never be
 placed in the repository, logs, screenshots, or chat.
+
+## Reconciliation after the first orchestration review — 2026-11-15
+
+Change set `samcli-deploy1794769828` was rejected and **must not be executed or
+recreated**. During the final read-only check, CloudFormation reported that it no
+longer exists and `ListChangeSets` returned an empty list. It was not applied: the
+stack still contains only its original four logical resources and no Step Functions,
+HTTP API, Cognito, or agent resources.
+
+An external stack update completed at 2026-11-15 19:24 UTC while this review was in
+progress. Stack events show that it modified only `FinancialToolsFunction`. This
+branch did not initiate that update. The current artifact and processed template
+were therefore recovered again through read-only APIs before the local
+reconciliation was finalized.
+
+The exact deployed Lambda artifact was recovered through the read-only Lambda API
+and verified by its deployed SHA-256 configuration value. It contains these
+established operations:
+
+- `compare_strategy_shift`
+- `market_status`
+- `portfolio_snapshot`
+- `trade_check`
+- `sentiment_summary`
+- `score_headlines`
+- `market_agent`
+- `classifier_agent`
+- `investor_position`
+
+The reconciled branch preserves their reviewed source modules and dispatcher, then
+adds `analyze_holdings_exposure`, `market_snapshot`, and
+`simulate_account_purchase`. Legacy callers receive their established response
+shape; Step Functions trace metadata is added only when a caller supplies a
+`parent_event_id`.
+
+The source template now preserves the live financial Lambda's 120-second timeout,
+reserved concurrency of five, `DATA_PREFIX`, `DATASET_ID`, `MARKET_PREFIX`,
+`MARKET_DATASET_ID`, and `BEDROCK_MODEL_ID`. Its role retains manifest-validated
+starter and market reads, writes only to the two approved `news_scored.csv` keys,
+and Nova Lite access through the approved inference profile.
+
+The HTTP API is no longer designed as anonymous. The replacement proposal uses:
+
+- a Cognito user pool with administrator-created demo users only;
+- an OAuth public browser client with no client secret;
+- Authorization Code with PKCE and sixty-minute access tokens;
+- an API Gateway JWT authorizer applied by default;
+- exact callback, logout, and CORS URLs;
+- one request/second stage throttling with burst two;
+- Lambda concurrency bounds and a three-minute Step Functions timeout;
+- schema length/pattern validation and generic production AWS errors.
+
+The browser stores the access token only in session storage. `NEXT_PUBLIC_*`
+configuration contains the domain, public client ID, and redirect URLs, none of
+which are reusable credentials. Local development leaves Cognito variables blank
+and calls local FastAPI normally.
+
+All Nova destination-model statements in the financial, agent, and API roles now
+require `bedrock:InferenceProfileArn` to equal the approved
+`us.amazon.nova-lite-v1:0` profile. No wildcard Bedrock, IAM administration, broad
+S3 write, or financial-transaction permission was added.
+
+No replacement change set has been created and no artifact has been uploaded for
+these fixes. Creating a replacement preview remains a separate approval gate.
 
 ## AWS-owned orchestration preflight — 2026-11-15
 
@@ -23,11 +88,11 @@ The refreshed profile resolves to the same account and
 - zero existing API Gateway v2 HTTP APIs;
 - the local template passes `sam validate --lint`, the CloudFormation
   `ValidateTemplate` API, and a clean SAM build for Python 3.12 ARM64;
-- 41 Python tests pass, one opt-in live-AWS test is skipped, and frontend tests,
+- 51 Python tests pass, one opt-in live-AWS test is skipped, and frontend tests,
   lint, and the production build pass.
 
-The template now contains sixteen application-level logical resources. Four are
-existing; twelve are proposed additions, subject to the transformed change set:
+The template now contains nineteen application-level logical resources. Four are
+existing; fifteen are proposed additions, subject to the transformed change set:
 
 | Proposed logical resource | Type | Purpose |
 | --- | --- | --- |
@@ -39,7 +104,10 @@ existing; twelve are proposed additions, subject to the transformed change set:
 | `WorkflowCoordinatorLogGroup` | CloudWatch Logs | Fourteen-day coordinator logs |
 | `InvestmentWorkflowExecutionRole` | IAM role | Invoke only the three workflow Lambdas |
 | `InvestmentAnalysisStateMachine` | Step Functions Standard | Durable parallel hierarchy and execution history |
-| `BackendHttpApi` | API Gateway HTTP API | Browser-facing start/status transport |
+| `DemoUserPool` | Cognito user pool | Administrator-created, short-lived demo identities |
+| `DemoUserPoolClient` | Cognito app client | Public Authorization Code + PKCE client with no secret |
+| `DemoUserPoolDomain` | Cognito domain | Hosted OAuth authorization and logout endpoints |
+| `BackendHttpApi` | API Gateway HTTP API | JWT-protected browser-facing start/status transport |
 | `BackendApiExecutionRole` | IAM role | Start/read workflow plus legacy endpoint access |
 | `BackendApiFunction` | Lambda | Mangum-hosted FastAPI adapter |
 | `BackendApiLogGroup` | CloudWatch Logs | Fourteen-day API logs |
@@ -78,11 +146,12 @@ and logs add well under one cent at demo volume. Twenty bounded demo runs should
 remain under USD $0.10; the USD $1.00 ceiling remains conservative. Token volume,
 retries, polling, taxes, Workshop credits, and pricing changes can alter the total.
 
-The HTTP API is intentionally public for the short workshop demo and protected by
-schema validation plus Lambda reserved concurrency of two, but CORS is not an
-authentication control. This is a residual cost/abuse risk. Do not publish the URL
-broadly, deploy only for the demo window, and obtain approval before adding a
-production authorizer or other infrastructure.
+The HTTP API endpoint remains internet-routable, but every application route uses
+the Cognito JWT authorizer by default. API Gateway throttles the stage to one
+request per second with burst two, while the backend Lambda retains reserved
+concurrency two. CORS is restricted to the configured frontend origin but is not
+treated as authentication. The public OAuth client uses PKCE and has no reusable
+secret; only an administrator-created user can obtain tokens.
 
 ## Live Lambda acceptance verification — 2026-11-14
 
