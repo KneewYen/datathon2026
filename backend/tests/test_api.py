@@ -93,6 +93,14 @@ def test_meta_reports_configuration_without_calling_aws(monkeypatch) -> None:
     assert integrations["bedrock"]["detail"] == "us.amazon.nova-lite-v1:0"
 
 
+def test_challenge_rejects_request_without_known_asset() -> None:
+    response = TestClient(app).post(
+        "/api/challenge", json={"persona_id": "robert", "message": "Is now a good time?"}
+    )
+    assert response.status_code == 422
+    assert "No asset from the starter universe" in response.json()["detail"]
+
+
 def test_conversational_account_proposal_requires_approval() -> None:
     store.ACCOUNTS.clear()
     store.PENDING.clear()

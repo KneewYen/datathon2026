@@ -16,7 +16,7 @@ def create(user_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "risk": payload["risk"],
         "risk_label": p["label"],
         "persona": p["persona"],
-        "horizon_agent": p["horizon_agent"],
+        "horizon_profile": p["horizon_profile"],
         "strategies": p["strategies"],
     }
     store.accounts(user_id).append(account)

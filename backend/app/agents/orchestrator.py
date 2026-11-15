@@ -5,7 +5,8 @@ from typing import Any, Callable, Dict, List
 from uuid import uuid4
 
 from app.agents.accounts import RRSPAccountAgent, TFSAAccountAgent
-from app.agents.explainability import ExplainabilityAgent
+from app.agents.challenge import SuitabilityChallengeAgent, parse_request
+from app.agents.explainability import ExplainabilityAgent, registry_from_budget, registry_from_metrics
 from app.agents.governance import GovernanceAgent
 from app.agents.profile import get_persona
 from app.agents import account_creation, knowledge, profile
@@ -15,11 +16,12 @@ from app.agents.signals import macro
 from app.domain.models import (
     AnalysisRequest,
     AnalysisResponse,
+    ChallengeResponse,
     MetricEvidence,
     PerformancePoint,
     TraceStep,
 )
-from app.domain.presets import STRATEGY_HOLDINGS
+from app.domain.presets import PERSONA_SCENARIOS, STRATEGY_HOLDINGS
 from app.services.lambda_tools import invoke
 
 DISCLAIMER = "Simulation only. Not financial advice."
@@ -42,6 +44,19 @@ class GlobalOrchestrator:
         self.financial_tool = financial_tool
         self.explainability_agent = explainability_agent or ExplainabilityAgent()
         self.governance_agent = GovernanceAgent()
+
+    def challenge(self, persona_id: str, message: str) -> ChallengeResponse:
+        """Test an investor-specific request (for example a single stock) against the profile."""
+        return SuitabilityChallengeAgent(self.financial_tool, self.explainability_agent).run(
+            persona_id, message
+        )
+
+    def is_challenge(self, persona_id: str, message: str) -> bool:
+        portfolio_value = float(PERSONA_SCENARIOS[persona_id]["portfolio_value"])
+        try:
+            return parse_request(message, portfolio_value) is not None
+        except ValueError:
+            return True
 
     def run(self, request: AnalysisRequest) -> AnalysisResponse:
         analysis_id = str(uuid4())
@@ -85,32 +100,41 @@ class GlobalOrchestrator:
         lambda_payload.update(
             {
                 "analysis_id": analysis_id,
-                "strategy_holdings": STRATEGY_HOLDINGS,
+                "strategy_holdings": {
+                    name: STRATEGY_HOLDINGS[name] for name in request.strategy_allocations
+                },
             }
         )
         calculation = self.financial_tool("compare_strategy_shift", lambda_payload)
         metrics = [MetricEvidence.model_validate(item) for item in calculation["metrics"]]
         evidence_ids = [metric.evidence_id for metric in metrics]
+        robustness = calculation.get("robustness", {})
         trace.append(
             TraceStep(
                 step_id="tool.financial_lambda",
                 parent_id="account.delegate",
                 agent="aws_financial_tools",
-                action="Calculate current and proposed portfolio metrics in AWS Lambda",
+                action=(
+                    "Calculate current and proposed metrics, replay the 2022 selloff, and "
+                    "re-test the conclusion on the full history in AWS Lambda"
+                ),
                 evidence_ids=evidence_ids,
                 details={"aws_request_id": calculation.get("aws_request_id", "unknown")},
             )
         )
 
         governance = self.governance_agent.evaluate(
-            request, calculation["conclusion"], metrics
+            request, calculation["conclusion"], metrics, robustness
         )
         trace.append(
             TraceStep(
                 step_id="governance.review",
                 parent_id="orchestrator.plan",
                 agent=self.governance_agent.name,
-                action="Apply simulation, profile, evidence, and trade-off controls",
+                action=(
+                    f"Apply simulation, account, evidence, and {persona['name']}'s risk-budget "
+                    "controls (loss, recovery, crypto, ESG, robustness)"
+                ),
                 evidence_ids=sorted(
                     {
                         evidence_id
@@ -128,13 +152,15 @@ class GlobalOrchestrator:
             governance,
             calculation["assumptions"],
             calculation["limitations"],
+            persona_id=request.persona_id,
+            robustness=robustness,
         )
         trace.append(
             TraceStep(
                 step_id="explainability.synthesize",
                 parent_id="governance.review",
                 agent=self.explainability_agent.name,
-                action="Use Amazon Bedrock to synthesize a grounded explanation",
+                action="Amazon Bedrock writes digit-free prose; code appends verified figures from the Lambda evidence",
                 evidence_ids=explanation.evidence_ids,
                 details={"model_id": explanation.model_id},
             )
@@ -146,7 +172,15 @@ class GlobalOrchestrator:
             persona_id=request.persona_id,
             account_type=request.account_type,
             answer=explanation.answer,
+            answer_segments=explanation.segments,
+            evidence={
+                **registry_from_metrics(metrics),
+                **registry_from_budget(request.persona_id),
+            },
             conclusion=calculation["conclusion"],
+            robustness=robustness,
+            stress_test=calculation.get("stress_test", {}),
+            portfolio_value=request.portfolio_value,
             current_allocations=calculation["current_allocations"],
             proposed_allocations=calculation["proposed_allocations"],
             metrics=metrics,
@@ -158,7 +192,7 @@ class GlobalOrchestrator:
             governance=governance,
             trace=trace,
             assumptions=calculation["assumptions"],
-            limitations=[*calculation["limitations"], *explanation.limitations],
+            limitations=list(dict.fromkeys([*calculation["limitations"], *explanation.limitations])),
             data_sources=calculation["data_sources"],
             model_id=explanation.model_id,
         )
@@ -175,7 +209,7 @@ class GlobalOrchestrator:
                     trace,
                     suggestions=["Create a short-term account", "Create a mid-term account", "Create a long-term account"],
                 )
-            trace.append({"agent": "Governance Agent", "action": "check fit with profile, require user approval"})
+            trace.append({"agent": "Approval Gate", "action": "hold the proposal; nothing is created until the user approves"})
             action_id = store.new_id()
             store.PENDING[action_id] = {"user_id": user_id, "type": "create_account", "payload": recommendation}
             return self._reply(
@@ -189,30 +223,31 @@ class GlobalOrchestrator:
 
         entry = knowledge.match(message)
         if entry:
-            trace[0]["action"] = f"detect intent: question ({entry['id']}), route to {', '.join(entry['agents'])}"
+            routes = entry.get("routes", [])
+            trace[0]["action"] = f"detect intent: question ({entry['id']})"
+            trace.append({"agent": "Knowledge Base", "action": f"curated answer '{entry['id']}' (static, reviewed text)"})
             extra: Dict[str, Any] = {"metrics": {}, "sources": [f"Knowledge base: {entry['id']}"], "warnings": []}
             answer = entry["answer"]
-            for agent in entry["agents"]:
-                if agent == "Macro Signal Agent":
-                    trace.append({"agent": agent, "action": "read yield curve and unemployment (Market Data)"})
-                    signal = macro.recession_signals()
-                    extra["metrics"].update(signal.get("metrics", {}))
-                    extra["sources"] += signal.get("sources", [])
-                    extra["warnings"] += signal.get("warnings", [])
-                    if signal.get("notes"):
-                        answer += "\n\n" + "\n".join(f"- {note}" for note in signal["notes"])
-                elif agent == "Risk Agent":
-                    accounts = store.accounts(user_id)
-                    trace.append({"agent": agent, "action": "map exposure to your accounts" if accounts else "no accounts yet"})
-                    if accounts:
-                        answer += "\n\nYour accounts:\n" + "\n".join(
-                            f"- {account['name']} ({account['risk_label']}): handled by {account['horizon_agent']}"
-                            + (", shortest horizon, most exposed to a near-term downturn" if account["horizon"] == "short" else "")
-                            for account in accounts
-                        )
-                else:
-                    trace.append({"agent": agent, "action": "answer from knowledge base"})
-            trace.append({"agent": "Explainability Agent", "action": "attach sources and limits"})
+            if "macro_signals" in routes:
+                trace.append({"agent": "Macro Signal Agent", "action": "read yield curves and unemployment from macro_rates.csv"})
+                signal = macro.recession_signals()
+                extra["metrics"].update(signal.get("metrics", {}))
+                extra["sources"] += signal.get("sources", [])
+                extra["warnings"] += signal.get("warnings", [])
+                if signal.get("notes"):
+                    answer += "\n\n" + "\n".join(f"- {note}" for note in signal["notes"])
+            if "account_exposure" in routes:
+                accounts = store.accounts(user_id)
+                trace.append({
+                    "agent": "Account Exposure Check",
+                    "action": "map the topic to your simulated accounts" if accounts else "no simulated accounts yet",
+                })
+                if accounts:
+                    answer += "\n\nYour accounts:\n" + "\n".join(
+                        f"- {account['name']} ({account['risk_label']}, {account['horizon_profile'].lower()})"
+                        + (": shortest horizon, most exposed to a near-term downturn" if account["horizon"] == "short" else "")
+                        for account in accounts
+                    )
             extra["warnings"].append(DISCLAIMER)
             return self._reply(answer, trace, **extra)
         return self._reply(
@@ -230,12 +265,11 @@ class GlobalOrchestrator:
             payload["risk"] = risk
         account = account_creation.create(action["user_id"], payload)
         return self._reply(
-            f"Created **{account['name']}** ({account['risk_label']}). It's managed by the "
-            f"{account['horizon_agent']} with {', '.join(account['strategies'])} strategies.",
+            f"Created **{account['name']}** ({account['risk_label']}, {account['horizon_profile'].lower()}) "
+            f"with {', '.join(account['strategies'])} strategies.",
             [
-                {"agent": "Governance Agent", "action": "user approved"},
-                {"agent": "Account Creation Agent", "action": f"created {account['name']}"},
-                {"agent": account["horizon_agent"], "action": f"assigned {', '.join(account['strategies'])}"},
+                {"agent": "Approval Gate", "action": "user approved"},
+                {"agent": "Account Creation Agent", "action": f"created {account['name']} with {', '.join(account['strategies'])}"},
             ],
             warnings=[DISCLAIMER],
         )

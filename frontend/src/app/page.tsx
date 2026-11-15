@@ -1,19 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { AllocationComparison } from "@/components/AllocationComparison";
-import { DEMO_QUESTION } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { AllocationComparison, applyShift } from "@/components/AllocationComparison";
+import { api, type ApiMeta } from "@/lib/api";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
-
-
-const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
-const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
 
 
 export default function Home() {
   const [personaId, setPersonaId] = useState<PersonaId>("amira");
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
   const persona = PERSONAS.find((item) => item.id === personaId)!;
+  const scenario = meta?.scenarios?.[personaId];
+
+  useEffect(() => {
+    api.meta().then(setMeta).catch(() => setMeta(null));
+  }, []);
 
   return (
     <main>
@@ -47,7 +49,10 @@ export default function Home() {
             <div><strong>{persona.horizon}</strong><span>horizon</span></div>
             <div><strong>{persona.risk}</strong><span>risk profile</span></div>
           </div>
-          <p>{persona.goal}. The scenario remains fictional and does not use client data.</p>
+          <p>
+            {persona.goal}. What this persona tests: {persona.tests.toLowerCase()}. The scenario remains fictional
+            and does not use client data.
+          </p>
         </aside>
       </section>
 
@@ -55,10 +60,10 @@ export default function Home() {
         <div className="workspace-kicker">
           <span>01</span>
           <p>Focused scenario</p>
-          <b>TFSA</b>
+          <b>{scenario?.account_type ?? "…"}</b>
         </div>
         <div className="question-row">
-          <h2>“{DEMO_QUESTION}”</h2>
+          <h2>“{scenario?.question ?? "Start the API to load this persona's scenario."}”</h2>
           <Link
             className="analyze-button"
             href={{ pathname: "/dashboard", query: { persona: personaId, run: "1" } }}
@@ -67,24 +72,29 @@ export default function Home() {
             <b>↗</b>
           </Link>
         </div>
-        <AllocationComparison
-          current={CURRENT}
-          proposed={PROPOSED}
-        />
+        {scenario && (
+          <AllocationComparison
+            current={scenario.strategy_allocations}
+            proposed={applyShift(scenario.strategy_allocations, scenario.shift)}
+            shiftAmount={scenario.shift.amount}
+            accountType={scenario.account_type}
+          />
+        )}
         <div className="method-strip">
           <span><b>S3</b> Versioned market data</span>
-          <span><b>λ</b> Deterministic calculations</span>
-          <span><b>BR</b> Grounded Bedrock explanation</span>
-          <span><b>✓</b> Governance checks</span>
+          <span><b>λ</b> Calculations + 2022 stress replay</span>
+          <span><b>BR</b> Bedrock prose, numbers inserted by code</span>
+          <span><b>✓</b> Persona risk budget pushes back</span>
         </div>
       </section>
 
       <section className="preflight">
         <div><span>02</span><h2>Continue in the demo workspace</h2></div>
         <p>
-          The app workspace runs the approved S3-backed Lambda calculation, asks Bedrock for a
-          grounded explanation, and shows the observable agent trace. No substitute live result
-          is rendered on this landing page.
+          The workspace runs the S3-backed Lambda calculation, replays 2022, applies each persona&apos;s
+          risk budget, and lets you challenge a specific request such as &ldquo;Put 25% of my RRSP in
+          NVDA&rdquo;. The advisor will not simply agree: it shows what fits instead. No substitute live
+          result is rendered on this landing page.
         </p>
       </section>
 

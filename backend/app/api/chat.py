@@ -6,7 +6,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.agents.orchestrator import GlobalOrchestrator
-from app.domain.models import AnalysisRequest, AnalysisResponse
+from app.domain.models import AnalysisRequest, AnalysisResponse, ChallengeRequest, ChallengeResponse
+from app.domain.presets import (
+    CHALLENGE_PROMPTS,
+    PERSONA_SCENARIOS,
+    PERSONAS,
+    STRATEGY_HOLDINGS,
+    STRATEGY_LABELS,
+)
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
@@ -24,13 +31,24 @@ class ApproveRequest(BaseModel):
     risk: Optional[str] = None
 
 
-def _run(request: AnalysisRequest) -> AnalysisResponse:
+def _guard(call):
     try:
-        return orchestrator.run(request)
+        return call()
     except ServiceConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ExternalServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+def _run(request: AnalysisRequest) -> AnalysisResponse:
+    return _guard(lambda: orchestrator.run(request))
+
+
+def _challenge(request: ChallengeRequest) -> ChallengeResponse:
+    try:
+        return _guard(lambda: orchestrator.challenge(request.persona_id, request.message))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/analysis", response_model=AnalysisResponse)
@@ -38,14 +56,30 @@ def analysis(request: AnalysisRequest) -> AnalysisResponse:
     return _run(request)
 
 
+@router.post("/analysis/persona/{persona_id}", response_model=AnalysisResponse)
+def persona_analysis(persona_id: str) -> AnalysisResponse:
+    """Run the scenario designed for this persona's test in the case brief."""
+    try:
+        request = AnalysisRequest.for_persona(persona_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _run(request)
+
+
+@router.post("/challenge", response_model=ChallengeResponse)
+def challenge(request: ChallengeRequest) -> ChallengeResponse:
+    return _challenge(request)
+
+
 @router.post("/chat")
 def chat(request: ChatRequest) -> Any:
-    """Run the focused analysis or the conversational account flow."""
+    """Route persona requests to the challenge or scenario analysis; otherwise the conversational flow."""
     if request.persona_id:
-        try:
-            return _run(AnalysisRequest(persona_id=request.persona_id, question=request.message))
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if request.persona_id not in PERSONA_SCENARIOS:
+            raise HTTPException(status_code=422, detail=f"unknown persona: {request.persona_id}")
+        if orchestrator.is_challenge(request.persona_id, request.message):
+            return _challenge(ChallengeRequest(persona_id=request.persona_id, message=request.message))
+        return _run(AnalysisRequest.for_persona(request.persona_id))
     return orchestrator.chat(request.user_id, request.message)
 
 
@@ -80,6 +114,20 @@ def meta() -> Dict[str, Any]:
     return {
         "profiles": PROFILES,
         "faq": knowledge.suggestions(),
+        "scenarios": PERSONA_SCENARIOS,
+        "challenge_prompts": CHALLENGE_PROMPTS,
+        "personas": {
+            persona_id: {
+                "name": persona["name"],
+                "account_type": persona["account_type"],
+                "portfolio_value": persona["portfolio_value"],
+                "risk_budget": persona["risk_budget"],
+                "esg_excluded_sectors": persona["esg_excluded_sectors"],
+            }
+            for persona_id, persona in PERSONAS.items()
+        },
+        "strategy_holdings": STRATEGY_HOLDINGS,
+        "strategy_labels": STRATEGY_LABELS,
         "integrations": {
             "region": region,
             "lambda": {

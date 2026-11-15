@@ -55,7 +55,7 @@ export function AccountsPanel({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{a.name}</span>
                 <span className="block truncate text-xs text-slate-500">
-                  {a.horizon_agent} · {HORIZON[a.horizon]} · {a.strategies.join(", ")}
+                  {a.horizon_profile} · {HORIZON[a.horizon]} · {a.strategies.join(", ")}
                 </span>
               </span>
               <span className="w-28 shrink-0">

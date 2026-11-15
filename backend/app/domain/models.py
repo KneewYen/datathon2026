@@ -6,9 +6,17 @@ from typing import Any, Dict, List, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-StrategyName = Literal["growth", "dividend", "momentum", "preservation"]
+from app.domain.presets import PERSONA_SCENARIOS, STRATEGY_HOLDINGS
+
+StrategyName = str
 AccountType = Literal["TFSA", "RRSP"]
 PersonaId = Literal["amira", "mateo", "robert"]
+
+
+def _known_strategy(name: str) -> str:
+    if name not in STRATEGY_HOLDINGS:
+        raise ValueError(f"unknown strategy: {name}")
+    return name
 
 
 class StrategyShift(BaseModel):
@@ -18,6 +26,8 @@ class StrategyShift(BaseModel):
 
     @model_validator(mode="after")
     def strategies_must_differ(self) -> "StrategyShift":
+        _known_strategy(self.from_strategy)
+        _known_strategy(self.to_strategy)
         if self.from_strategy == self.to_strategy:
             raise ValueError("from_strategy and to_strategy must differ")
         return self
@@ -43,14 +53,24 @@ class AnalysisRequest(BaseModel):
     )
     start_date: date = date(2023, 11, 13)
     end_date: date = date(2026, 11, 12)
+    portfolio_value: float | None = Field(default=None, gt=0)
+
+    @classmethod
+    def for_persona(cls, persona_id: str) -> "AnalysisRequest":
+        scenario = PERSONA_SCENARIOS.get(persona_id)
+        if scenario is None:
+            raise ValueError(f"unknown persona: {persona_id}")
+        return cls(persona_id=persona_id, **scenario)
 
     @field_validator("strategy_allocations")
     @classmethod
     def allocations_are_valid(
         cls, value: Dict[StrategyName, float]
     ) -> Dict[StrategyName, float]:
-        if set(value) != {"growth", "dividend", "momentum", "preservation"}:
-            raise ValueError("all four strategy allocations are required")
+        if len(value) < 2:
+            raise ValueError("at least two strategy allocations are required")
+        for name in value:
+            _known_strategy(name)
         if any(weight < 0 or weight > 1 for weight in value.values()):
             raise ValueError("strategy weights must be between 0 and 1")
         if abs(sum(value.values()) - 1.0) > 1e-9:
@@ -59,6 +79,9 @@ class AnalysisRequest(BaseModel):
 
     @model_validator(mode="after")
     def scenario_is_possible(self) -> "AnalysisRequest":
+        for name in (self.shift.from_strategy, self.shift.to_strategy):
+            if name not in self.strategy_allocations:
+                raise ValueError(f"shift strategy {name} is not in strategy_allocations")
         if self.strategy_allocations[self.shift.from_strategy] < self.shift.amount:
             raise ValueError("shift exceeds the source strategy allocation")
         if self.start_date >= self.end_date:
@@ -88,9 +111,9 @@ class AgentFinding(BaseModel):
 class MetricEvidence(BaseModel):
     evidence_id: str
     label: str
-    current: float
-    proposed: float
-    delta: float
+    current: float | None
+    proposed: float | None
+    delta: float | None
     unit: str
     source: str
     formula_version: str
@@ -110,6 +133,8 @@ class Explanation(BaseModel):
     evidence_ids: List[str]
     limitations: List[str] = Field(default_factory=list)
     model_id: str
+    answer_template: str = ""
+    segments: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class PerformancePoint(BaseModel):
@@ -126,7 +151,12 @@ class AnalysisResponse(BaseModel):
     persona_id: PersonaId
     account_type: AccountType
     answer: str
+    answer_segments: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     conclusion: Literal["risk_reduced", "risk_increased", "mixed"]
+    robustness: Dict[str, Any] = Field(default_factory=dict)
+    stress_test: Dict[str, Any] = Field(default_factory=dict)
+    portfolio_value: float | None = None
     current_allocations: Dict[str, float]
     proposed_allocations: Dict[str, float]
     metrics: List[MetricEvidence]
@@ -137,6 +167,48 @@ class AnalysisResponse(BaseModel):
     assumptions: List[str]
     limitations: List[str]
     data_sources: List[str]
+    model_id: str
+    disclaimer: str = (
+        "Simulation only. Fictional portfolios. Not financial advice. No real trades."
+    )
+
+
+class ChallengeRequest(BaseModel):
+    persona_id: PersonaId
+    message: str = Field(min_length=3, max_length=500)
+
+
+class ScenarioResult(BaseModel):
+    id: str
+    label: str
+    description: str
+    strategy_allocations: Dict[str, float]
+    largest_position_ticker: str
+    evidence: List[Dict[str, Any]]
+    recovery: Dict[str, Any] = Field(default_factory=dict)
+    findings: List[GovernanceFinding] = Field(default_factory=list)
+    within_profile: bool
+
+
+class ChallengeResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    analysis_id: str
+    persona_id: PersonaId
+    question: str
+    parsed_request: Dict[str, Any]
+    verdict: Literal["aligned", "cap", "alternative", "conflict"]
+    recommended_scenario: str
+    scenarios: List[ScenarioResult]
+    answer: str
+    answer_segments: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    governance: List[GovernanceFinding]
+    trace: List[TraceStep]
+    assumptions: List[str]
+    limitations: List[str]
+    data_sources: List[str]
+    windows: Dict[str, Any] = Field(default_factory=dict)
     model_id: str
     disclaimer: str = (
         "Simulation only. Fictional portfolios. Not financial advice. No real trades."

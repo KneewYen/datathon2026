@@ -3,13 +3,19 @@ from __future__ import annotations
 import sys
 import unittest
 import hashlib
+from datetime import date
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda" / "financial_tools"))
 
-from calculations import apply_shift, compare_strategy_shift  # noqa: E402
+from calculations import (  # noqa: E402
+    apply_shift,
+    compare_scenarios,
+    compare_strategy_shift,
+    drawdown_recovery,
+)
 from data_access import _verify_manifest, dataset_from_csv_text  # noqa: E402
 
 
@@ -83,6 +89,56 @@ class CalculationTests(unittest.TestCase):
             metrics["metric.annualized_return"]["current"],
         )
         self.assertEqual(len(result["performance_series"]), 93)
+        self.assertTrue(result["robustness"]["consistent"])
+        self.assertEqual(
+            [item["conclusion"] for item in result["robustness"]["windows"]],
+            ["risk_reduced", "risk_reduced"],
+        )
+        self.assertLess(
+            metrics["metric.stress_2022_drawdown"]["current"],
+            metrics["metric.stress_2022_drawdown"]["proposed"],
+        )
+        self.assertEqual(result["stress_test"]["current"]["trough_date"][:4], "2022")
+
+    def test_recovery_reports_months_underwater_or_none(self) -> None:
+        dates = [date(2022, 1, 3), date(2022, 2, 1), date(2022, 6, 1), date(2023, 1, 3)]
+        recovered = drawdown_recovery(dates, [-0.2, 0.0, 0.3], date(2022, 1, 1), date(2022, 12, 31))
+        self.assertAlmostEqual(recovered["peak_to_trough"], -0.2)
+        self.assertEqual(recovered["recovery_date"], "2023-01-03")
+        self.assertAlmostEqual(recovered["months_underwater"], 365 / (365.25 / 12))
+        never = drawdown_recovery(dates, [-0.2, 0.0, 0.1], date(2022, 1, 1), date(2022, 12, 31))
+        self.assertIsNone(never["months_underwater"])
+
+    def test_compare_scenarios_uses_one_calendar_and_reports_largest_position(self) -> None:
+        holdings = {**STRATEGY_HOLDINGS, "single_nvda": {"NVDA": 1.0}}
+        result = compare_scenarios(
+            {
+                "analysis_id": "challenge",
+                "scenarios": [
+                    {"id": "baseline", "strategy_allocations": {"preservation": 0.5, "dividend": 0.5}},
+                    {
+                        "id": "requested",
+                        "strategy_allocations": {"preservation": 0.375, "dividend": 0.375, "single_nvda": 0.25},
+                    },
+                ],
+                "strategy_holdings": holdings,
+                "start_date": "2023-11-13",
+                "end_date": "2026-11-12",
+                "portfolio_value": 100000,
+            },
+            self.dataset,
+        )
+        values = {
+            item["id"]: {e["evidence_id"].split(".")[-1]: e["value"] for e in item["evidence"]}
+            for item in result["scenarios"]
+        }
+        requested = next(item for item in result["scenarios"] if item["id"] == "requested")
+        self.assertEqual(requested["largest_position_ticker"], "NVDA")
+        self.assertAlmostEqual(values["requested"]["largest_position"], 0.25)
+        self.assertLess(values["requested"]["stress_2022_drawdown"], values["baseline"]["stress_2022_drawdown"])
+        self.assertAlmostEqual(
+            values["requested"]["stress_2022_loss_cad"], 100000 * values["requested"]["stress_2022_drawdown"]
+        )
 
     def test_rejects_duplicate_price_dates(self) -> None:
         prices = (

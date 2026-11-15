@@ -6,15 +6,20 @@ import json
 import logging
 
 try:
-    from .calculations import compare_strategy_shift
+    from .calculations import compare_scenarios, compare_strategy_shift
     from .data_access import load_dataset_from_s3
 except ImportError:  # Lambda CodeUri places modules at the runtime root.
-    from calculations import compare_strategy_shift
+    from calculations import compare_scenarios, compare_strategy_shift
     from data_access import load_dataset_from_s3
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+OPERATIONS = {
+    "compare_strategy_shift": compare_strategy_shift,
+    "compare_scenarios": compare_scenarios,
+}
 
 
 def handler(event, context):
@@ -32,9 +37,9 @@ def handler(event, context):
         )
     )
     try:
-        if operation != "compare_strategy_shift":
+        if operation not in OPERATIONS:
             raise ValueError(f"unsupported operation: {operation}")
-        result = compare_strategy_shift(event, load_dataset_from_s3())
+        result = OPERATIONS[operation](event, load_dataset_from_s3())
         result["aws_request_id"] = request_id
         logger.info(
             json.dumps(

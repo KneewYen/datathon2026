@@ -1,18 +1,21 @@
 "use client";
 
-import { AllocationComparison } from "@/components/AllocationComparison";
+import { AllocationComparison, applyShift } from "@/components/AllocationComparison";
+import { EvidenceAnswer } from "@/components/EvidenceAnswer";
 import { MetricCards } from "@/components/MetricCards";
 import { PerformanceChart } from "@/components/PerformanceChart";
+import { StressPanel } from "@/components/StressPanel";
 import { TraceTimeline } from "@/components/TraceTimeline";
-import {
-  DEMO_QUESTION,
-  type AnalysisResponse,
-  type ApiMeta,
-} from "@/lib/api";
+import { type AnalysisResponse, type ApiMeta } from "@/lib/api";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
 
-const CURRENT = { growth: 0.6, dividend: 0.2, momentum: 0.1, preservation: 0.1 };
-const PROPOSED = { growth: 0.4, dividend: 0.4, momentum: 0.1, preservation: 0.1 };
+const PRIMARY_METRICS = new Set([
+  "metric.annualized_volatility",
+  "metric.maximum_drawdown",
+  "metric.annualized_return",
+  "metric.total_return",
+  "metric.concentration_hhi",
+]);
 
 function StatusDot({ ready, verified }: { ready: boolean; verified: boolean }) {
   const color = verified ? "bg-emerald-500" : ready ? "bg-amber-400" : "bg-slate-300";
@@ -39,6 +42,8 @@ export function LiveAnalysisPanel({
   onRun: () => void;
 }) {
   const persona = PERSONAS.find((item) => item.id === personaId)!;
+  const scenario = meta?.scenarios?.[personaId];
+  const budget = meta?.personas?.[personaId]?.risk_budget;
   const verified = Boolean(result);
   const services = [
     {
@@ -76,10 +81,10 @@ export function LiveAnalysisPanel({
               Live AWS scenario
             </p>
             <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-snug sm:text-2xl">
-              {DEMO_QUESTION}
+              {result?.question ?? scenario?.question ?? "Loading the persona scenario…"}
             </h1>
             <p className="mt-2 text-sm text-slate-300">
-              {persona.name} · {persona.horizon} · {persona.risk} risk profile
+              {persona.name} · {persona.horizon} · {persona.risk} risk profile · Tests: {persona.tests}
             </p>
           </div>
           <button
@@ -133,10 +138,16 @@ export function LiveAnalysisPanel({
         )}
 
         <div className="rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
-          <AllocationComparison
-            current={result?.current_allocations ?? CURRENT}
-            proposed={result?.proposed_allocations ?? PROPOSED}
-          />
+          {scenario ? (
+            <AllocationComparison
+              current={result?.current_allocations ?? scenario.strategy_allocations}
+              proposed={result?.proposed_allocations ?? applyShift(scenario.strategy_allocations, scenario.shift)}
+              shiftAmount={scenario.shift.amount}
+              accountType={scenario.account_type}
+            />
+          ) : (
+            <p className="text-sm text-slate-500">Waiting for the API to load {persona.name}&apos;s scenario.</p>
+          )}
         </div>
 
         {error && (
@@ -152,15 +163,23 @@ export function LiveAnalysisPanel({
         {!result && !error && (
           <div className="rounded-md border border-slate-200 px-4 py-3 text-sm text-slate-500" aria-live="polite">
             {busy
-              ? "The global orchestrator is delegating to the TFSA and strategy agents, then calling Lambda and Bedrock."
+              ? "The global orchestrator is delegating to the account and strategy agents, then calling Lambda (with the 2022 replay) and Bedrock."
               : "Ready to run the deterministic S3-backed comparison. A successful result verifies Lambda, dataset access, governance, and Bedrock."}
           </div>
         )}
 
         {result && (
           <div className="space-y-8" aria-live="polite">
-            <div className="rounded-md bg-emerald-950 p-5 text-white">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-300">Evidence-backed answer</p>
+            <div
+              className={`rounded-md p-5 text-white ${
+                result.conclusion === "risk_reduced"
+                  ? "bg-emerald-950"
+                  : result.conclusion === "risk_increased"
+                    ? "bg-amber-900"
+                    : "bg-navy"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">Evidence-backed answer</p>
               <h2 className="mt-1 text-2xl font-semibold">
                 {result.conclusion === "risk_reduced"
                   ? "Measured historical risk decreased."
@@ -168,8 +187,10 @@ export function LiveAnalysisPanel({
                     ? "Measured historical risk increased."
                     : "The historical evidence is mixed."}
               </h2>
-              <p className="mt-2 max-w-4xl text-sm leading-relaxed text-emerald-50">{result.answer}</p>
-              <p className="mt-3 text-xs text-emerald-200">Bedrock: {result.model_id}</p>
+              <div className="mt-2 max-w-4xl text-white/90">
+                <EvidenceAnswer segments={result.answer_segments} evidence={result.evidence} fallback={result.answer} />
+              </div>
+              <p className="mt-3 text-xs text-white/60">Bedrock: {result.model_id}</p>
             </div>
 
             <div>
@@ -177,7 +198,10 @@ export function LiveAnalysisPanel({
                 <h2 className="text-xl font-semibold">Deterministic metrics</h2>
                 <p className="text-xs text-slate-500">Calculated by AWS Lambda</p>
               </div>
-              <MetricCards metrics={result.metrics} />
+              <MetricCards metrics={result.metrics.filter((metric) => PRIMARY_METRICS.has(metric.evidence_id))} />
+              <div className="mt-6">
+                <StressPanel result={result} budget={budget} personaName={persona.name} />
+              </div>
               <PerformanceChart points={result.performance_series} />
             </div>
 

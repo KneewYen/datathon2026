@@ -1,130 +1,78 @@
 # PortfolioGuard AI five-minute demo script
 
+Storyline: the same request from two investors gets two different, evidence-backed
+answers. The advisor pushes back when a request does not fit.
+
 ## Before recording
 
-- Confirm the live AWS integration test passes against the approved stack.
-- Confirm the backend health endpoint and live integration test report the expected
-  Region, Lambda, versioned S3 sources, and Bedrock model.
-- Use fictional persona and allocation data only.
-- Open CloudWatch Logs to the current Lambda log group in a separate tab.
-- Keep a prior real-run response available only as a clearly labeled backup artifact.
+- Start the backend and frontend, and confirm `/health` and the dashboard service
+  dots (FastAPI, S3, Lambda, Bedrock).
+- Run each live call once to warm the Lambda.
+- Use fictional personas only. Keep CloudWatch Logs open in a separate tab.
 
-## 0:00–0:35 — Problem and promise
+## 0:00–0:30: Problem
 
-**Say:**
+"Most investment tools agree with you. If Robert, 59 and close to retirement, reads
+about NVIDIA, he gets a buy button. PortfolioGuard AI is an advisor that knows when
+to say no, and shows its evidence."
 
-“Portfolio changes are often delivered as a recommendation without a transparent
-calculation path. PortfolioGuard AI turns a hypothetical question into a traceable,
-source-backed comparison. It never executes a trade, and every portfolio shown is
-fictional.”
+Show the landing page and switch personas to show that each one has its own scenario.
 
-Show the landing page and simulation-only boundary.
+## 0:30–1:30: Amira asks for NVDA
 
-## 0:35–1:05 — Investor context and question
+Open the dashboard with **Amira**. In **Suitability challenge**, click
+"Put 25% of my TFSA in NVDA".
 
-Select **Amira**.
+"The request parser extracts NVDA at 25%. The challenge agent builds three
+allocations: as requested, a capped version, and a diversified growth alternative.
+One Lambda call measures all of them on the same calendar and replays 2022."
 
-**Say:**
+Point at the verdict: **a smaller position fits**. NVDA would total 32.5% of her
+portfolio, above her 15% single-company cap. "High risk does not mean anything goes."
 
-“Our first scenario is deliberately focused: would moving twenty percentage points
-of Amira’s fictional TFSA from growth to dividend reduce measured risk? The current
-allocation is sixty percent growth and twenty percent dividend. The proposal makes
-both forty percent.”
+## 1:30–2:45: Robert asks for the same thing
 
-Point to the allocation bars. Do not describe the result yet.
+Switch to **Robert** and click "Put 25% of my RRSP in NVDA".
 
-## 1:05–1:45 — Real agent hierarchy
+"Same request, different investor. In a 2022 replay that portfolio fell -22.4%,
+about $101,000 of his fictional balance, against a -15% loss budget. The capped 5%
+version fell -11.2% and fits."
 
-Click **Analyze with live AWS**.
+Click the **-22.4%** chip. "Bedrock wrote the sentence but not the number. Code
+inserted it from Lambda evidence. Here is its evidence ID, raw value, formula
+version, and the versioned S3 object it came from."
 
-**Say while it runs:**
+Scroll to the scenario table and the trace: parser, challenge agent, Lambda,
+governance, verdict, Bedrock.
 
-“This is not one prompt pretending to be many agents. The global orchestrator
-selects the TFSA account agent. That account agent delegates only to the two
-strategies affected by the change: growth and dividend. Those agents request a
-typed deterministic operation; they do not calculate numbers.”
+## 2:45–3:30: Mateo's values
 
-When the result appears, scroll to **Observable delegation** and point out the
-parent/child trace, Lambda request ID, governance step, and Bedrock model.
+Switch to **Mateo** and click "Put 10% in Exxon".
 
-## 1:45–2:40 — Deterministic AWS evidence
+"Mateo cares about ESG. Exxon is screened out by sector, using sector data from the
+dataset rather than an opinion, so there is no capped version. The system recommends
+the ESG basket. It is also honest that in 2022 the ESG basket fell more than the
+Exxon request did. Values have a measured cost, and we show it."
 
-Scroll to **What changed**.
+## 3:30–4:20: Scenario analysis, stress, robustness
 
-**Say:**
+Click **Run live analysis** for Robert's scenario (15% from preservation into growth).
 
-“AWS Lambda reads adjusted prices and USD/CAD observations from private, versioned
-Amazon S3 objects. It converts USD listings into CAD, intersects the trading
-calendars, and applies the same constant-weight method to both portfolios.”
+"Risk increases. The 2022 replay goes from -8.7% to -14.7%, close to his -15%
+budget, and recovery goes from 8 to 15 months. The conclusion is marked *Robust*
+because it holds on the full five-year history, which includes 2022."
 
-“In this historical window, annualized volatility declines from about eighteen and
-a half percent to thirteen and seven tenths. Maximum drawdown becomes less severe,
-moving from about negative nineteen and seven tenths to negative fifteen and a
-half. Asset concentration also falls.”
+## 4:20–4:45: AWS proof
 
-Point to the metric cards and performance chart.
+Show CloudWatch `calculation_started` and `calculation_completed` with the same
+analysis ID. Mention S3 manifest checksum verification and least-privilege IAM.
 
-## 2:40–3:20 — Trade-off, not recommendation
+## 4:45–5:00: Close
 
-**Say:**
-
-“The conclusion is not simply ‘yes.’ Historical annualized return also declines,
-from about thirty point eight percent to twenty-seven point four. PortfolioGuard
-surfaces that trade-off and explicitly states that historical performance does not
-predict future results.”
-
-Open **Calculation assumptions** and **Limitations**. Mention fees, taxes,
-contribution room, survivorship bias, and fictional baskets.
-
-## 3:20–4:05 — Grounded Bedrock explanation and governance
-
-**Say:**
-
-“Only Lambda can generate financial values. Bedrock receives a closed evidence
-packet and explains the result in words. Its response fails validation if it cites
-an unknown evidence ID or tries to introduce a number.”
-
-Point to governance findings.
-
-Switch briefly between personas:
-
-- Mateo exposes the lack of company-level ESG controversy evidence.
-- Robert exposes the conflict between the same proposal and his short fictional
-  horizon and capital-preservation objective.
-
-**Say:**
-
-“The calculations stay consistent, but governance changes with the investor
-context instead of manufacturing a different market history.”
-
-## 4:05–4:35 — Prove the AWS path
-
-Open CloudWatch Logs.
-
-**Say:**
-
-“Here is the same analysis ID and AWS Lambda request ID in CloudWatch. The S3 source
-list in the response includes version IDs or ETags, so this result is reproducible.
-IAM limits the backend to this function and the approved Bedrock resources.”
-
-Show one `calculation_started` and matching `calculation_completed` structured log.
-Do not expose account identifiers or credentials.
-
-## 4:35–5:00 — Close
-
-Return to the answer.
-
-**Say:**
-
-“PortfolioGuard AI demonstrates a safer pattern for agentic financial decision
-support: purposeful delegation, deterministic cloud tools, visible governance, and
-language generation constrained by evidence. For this fictional scenario, measured
-historical risk declined, but so did historical return. The user sees both—and can
-inspect exactly why.”
+"PortfolioGuard AI adapts to the investor, pushes back with evidence, and lets you
+verify every number. Simulation only, not financial advice."
 
 ## Failure recovery
 
-If AWS fails during the live demo, keep the honest error state visible and explain
-that local placeholders are intentionally disabled. Then show a timestamped prior
-response that is clearly labeled as a previous real AWS run, followed by its
-matching CloudWatch entries. Never present a fixture or mocked response as live.
+If AWS fails, keep the honest error state visible. Local placeholders are
+intentionally disabled. Show a timestamped earlier real run, clearly labeled as such.

@@ -83,7 +83,7 @@ export default function ProfilePage() {
                 <li key={a.id} className="flex items-center justify-between gap-4 py-3">
                   <div>
                     <div className="font-medium">{a.name}</div>
-                    <div className="text-xs text-slate-500">{a.horizon_agent} · {a.strategies.join(", ")}</div>
+                    <div className="text-xs text-slate-500">{a.horizon_profile} · {a.strategies.join(", ")}</div>
                   </div>
                   <div className="w-28">
                     <div className="mb-1 text-right text-xs text-brand-700">{a.risk_label}</div>

@@ -3,54 +3,61 @@
 **Team 62 · AlphaForge AI Datathon 2026**
 
 PortfolioGuard AI is an evidence-backed decision-support prototype for fictional
-TFSA and RRSP portfolios. It delegates a scenario through a real agent hierarchy,
-calculates every financial metric deterministically in AWS Lambda from versioned
-S3 data, applies governance rules, and asks Amazon Bedrock to explain only the
-verified evidence.
+TFSA and RRSP portfolios. It is **an advisor that knows when to say no**: each case
+persona gets a scenario built around what the brief says they test, and a
+suitability challenge lets them ask for something specific ("Put 25% of my RRSP in
+NVDA"). The system measures the request as asked, capped, and as a diversified
+alternative in AWS Lambda, replays the 2022 stock-and-bond selloff, applies the
+persona's risk budget, and returns a verdict. Bedrock writes the explanation. Every
+number in it is inserted by code from Lambda evidence and can be clicked to see its
+source.
 
 > Simulation only. Fictional portfolios. Not financial advice. No real trades.
 
-## Demo scenario
+## What the jury will see
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+| Request | Amira (high risk, 15+ yrs) | Robert (low–moderate, 3–5 yrs) |
+| --- | --- | --- |
+| "Put 25% in NVDA" | **cap**: 32.5% NVDA total exceeds her 15% single-company cap | **cap**: 2022 replay -22.4% (-$100,981) vs -15% budget; 5% fits (-11.2%) |
+| "Should I buy Tesla?" | **aligned**: within budget | **cap**: 10% exceeds the 5% cap |
+| "Add bitcoin" | **alternative**: no crypto room above 10% | **alternative**: crypto is outside his profile |
 
-The reviewed starter data produces a deterministic historical result: annualized
-volatility falls from 18.48% to 13.71%, maximum drawdown improves from -19.72% to
--15.53%, and historical annualized return falls from 30.80% to 27.42%. The lower
-measured risk therefore comes with a historical return trade-off. These figures
-are observations from the stated 2023-11-13 through 2026-11-12 window, not forecasts.
+Mateo's "Put 10% in Exxon" is screened out by sector (`assets_universe.csv`), so the
+system recommends the ESG basket. It also discloses that the ESG basket fell more in
+2022.
+
+The original golden scenario is still the default `POST /api/analysis` request:
+moving 20% of a TFSA from growth to dividend. Annualized volatility falls from 18.48%
+to 13.71%, maximum drawdown improves from -19.72% to -15.53%, and historical return
+falls from 30.80% to 27.42% (2023-11-13 to 2026-11-12). These are observations, not
+forecasts.
 
 ## Architecture
 
 ```text
 Next.js dashboard → FastAPI → Global Orchestrator
-                                ├─ TFSA / RRSP Account Agent
-                                │    └─ Growth / Dividend / Momentum /
-                                │       Capital Preservation Strategy Agents
-                                │          └─ AWS Lambda → versioned Amazon S3 data
-                                ├─ deterministic Governance Agent
-                                └─ Explainability Agent → Amazon Bedrock Converse API
+   ├─ Persona scenario: Account Agent → affected Strategy Agents
+   │     → Lambda compare_strategy_shift (+ 2022 replay, recovery, robustness)
+   ├─ Suitability challenge: Request parser → Suitability Challenge Agent
+   │     → Lambda compare_scenarios (requested / capped / alternative)
+   ├─ Governance Agent (account scope + persona risk budget, ESG sector screen)
+   └─ Explainability Agent → Amazon Bedrock (digit-free prose)
+         + code-inserted verified figures from the Lambda evidence registry
 
-AWS Lambda + FastAPI expose correlated execution details to CloudWatch and the UI.
+Lambda reads versioned Amazon S3 data and verifies manifest checksums on every call;
+CloudWatch receives correlated structured logs.
 ```
-
-The execution trace makes delegation observable. Strategy and language-model
-agents cannot create financial values; only the deterministic Lambda does so.
 
 ## Current status
 
-- Local vertical slice, agent hierarchy, deterministic engine, dashboard, IaC,
-  manifest generation, CI, and local tests are implemented.
-- AWS SAM defines a private encrypted/versioned bucket, bounded calculation
-  Lambda, CloudWatch log group, and one unnamed least-privilege Lambda execution
-  role for the restricted workshop.
-- The reviewed AWS stack is deployed in `us-east-1`: private versioned S3 storage,
-  deterministic Lambda, least-privilege execution role, and CloudWatch log group.
-  The six-file dataset and manifest are uploaded with verified SHA-256 checksums;
-  one bounded Lambda acceptance run matched the local engine exactly, while
-  Bedrock has not yet been invoked.
-- Advanced VaR/CVaR, broader momentum analytics, and monitoring dashboards remain
-  intentionally deferred until the primary scenario is proven end to end.
+- Deployed in `us-east-1`: private versioned S3 dataset, deterministic Lambda
+  (updated with `compare_scenarios`, stress replay and robustness), least-privilege
+  role, and CloudWatch log group.
+- Persona scenarios and the suitability challenge run end to end against the live
+  Lambda and Amazon Bedrock Nova Lite.
+- Backend: 37 tests. Lambda: 7 tests. Frontend lint and type-check are clean.
+- Deferred: VaR/CVaR, company-level ESG controversy data, macro publication-date
+  handling, and hosting the API on AWS.
 
 Project documentation:
 
@@ -86,9 +93,20 @@ npm run dev
 The API runs at `http://localhost:8000`; the landing page runs at
 `http://localhost:3000`, and the demo workspace is at
 `http://localhost:3000/dashboard`. Selecting a persona on the landing page and
-choosing **Analyze with live AWS** opens the workspace and starts the approved
-TFSA comparison. The workspace deliberately shows no substitute metrics when
-live AWS is unavailable.
+choosing **Analyze with live AWS** opens the workspace and runs that persona's
+scenario. The **Suitability challenge** panel below it runs specific requests. The
+workspace deliberately shows no substitute metrics when live AWS is unavailable.
+
+On Windows PowerShell, activate the backend with `.\.venv\Scripts\Activate.ps1` and
+use `Copy-Item` instead of `cp`.
+
+Main endpoints: `POST /api/analysis/persona/{amira|mateo|robert}`,
+`POST /api/challenge` (`{"persona_id": "robert", "message": "Put 25% of my RRSP in NVDA"}`),
+`POST /api/analysis` (custom scenario), and `GET /api/meta`.
+
+To deploy Lambda code changes without SAM, zip `handler.py`, `calculations.py`,
+`data_access.py` and `__init__.py` from `lambda/financial_tools/` and run
+`aws lambda update-function-code --function-name portfolioguard-workshop-financial-tools --zip-file fileb://financial_tools.zip`.
 
 FastAPI loads `backend/.env` for local development without overriding variables
 already supplied by the shell or deployment environment.

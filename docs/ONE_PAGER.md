@@ -1,78 +1,69 @@
-# PortfolioGuard AI — one-page summary
+# PortfolioGuard AI: one-page summary
 
 ## The problem
 
-Portfolio decisions are often presented as a single recommendation without showing
-how the answer was produced, which evidence supports it, or which trade-offs and
-limitations matter. Generative AI can make this worse if it invents financial
-figures or hides the calculation path.
+Investment tools tend to agree with the investor. A 59-year-old who reads about a
+hot stock gets a buy button, not a conversation about his horizon. Generative AI
+makes this worse when it invents figures or hides how an answer was produced.
 
-## The solution
+## The solution: an advisor that knows when to say no
 
-PortfolioGuard AI is a transparent multi-agent decision-support prototype for
-fictional TFSA and RRSP portfolios. A user asks a hypothetical allocation question;
-the system delegates it through account and strategy agents, calculates historical
-risk in AWS, applies governance rules, and uses Amazon Bedrock only to explain
-verified evidence.
+PortfolioGuard AI is a multi-agent decision-support prototype for fictional TFSA and
+RRSP portfolios. It does two things for each of the case personas:
 
-The first scenario asks:
+1. **Persona scenario.** Each persona gets a scenario built around what the brief
+   says they test. Amira diversifies away from tech, Mateo moves into ESG, and Robert
+   considers adding growth before retirement. The answers differ because the
+   evidence differs.
+2. **Suitability challenge.** The investor asks for something specific ("Put 25% of
+   my RRSP in NVDA"). The system measures the request as asked, a capped version, and
+   a diversified alternative on the same AWS data. It applies the persona's risk
+   budget and returns a verdict: *aligned*, *cap*, *alternative* or *conflict*.
 
-> Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?
+The same NVDA request is capped for Robert because a 2022 replay loses -22.4% against
+his -15% loss budget. Amira is capped at a 15% total position, and her Tesla request
+is allowed as asked. The adaptation is the product.
 
 ## Why it is agentic
 
 ```text
 Global Orchestrator
-  → TFSA or RRSP Account Agent
-    → relevant Growth / Dividend / Momentum / Preservation Agents
-      → deterministic AWS Lambda financial tool
-  → Governance Agent
-  → Bedrock Explainability Agent
+  ├─ Account agent → only the strategy agents affected by the change
+  ├─ Request parser (deterministic) → Suitability Challenge Agent
+  ├─ AWS Lambda financial tools (compare_strategy_shift, compare_scenarios)
+  ├─ Governance Agent (persona risk budget)
+  └─ Explainability Agent → Amazon Bedrock
 ```
 
-Every delegation is typed, recorded, visible in the dashboard, and covered by
-tests. Agents that do not contribute to a request are not invoked.
+Every step is typed, recorded and shown in the dashboard trace. No agent appears in
+a trace unless it ran.
 
 ## Why the result is trustworthy
 
-- Lambda is the only source of financial metrics.
-- Lambda verifies manifest checksums, reads versioned S3 data, and returns object
-  provenance.
-- Adjusted close, CAD currency conversion, common calendars, and rebalance policy
-  are explicit.
-- Bedrock may cite only supplied evidence IDs and cannot introduce numbers.
-- Governance exposes persona conflicts, account-scope limits, and missing ESG data.
-- Historical observations are clearly separated from future outcomes.
-- The application cannot execute a trade.
-
-## Primary result
-
-In the reviewed historical window, the proposed fictional shift lowers annualized
-volatility from 18.48% to 13.71% and improves maximum drawdown from -19.72% to
--15.53%. Historical annualized return also falls from 30.80% to 27.42%. The answer
-is therefore “lower measured historical risk, with a return trade-off,” not a
-recommendation or forecast.
+- **Numbers come from Lambda.** Bedrock writes digit-free prose. Code appends every
+  figure from the Lambda evidence registry, and each number in the answer is a
+  button showing its evidence ID, raw value, formula version and S3 object version.
+- **Stress replay.** Every proposal is replayed through 2022, when stocks and bonds
+  fell together, and timed to full recovery against the persona's horizon.
+- **Robustness badge.** Each conclusion is re-tested on the full five-year history.
+  It is marked *Robust* or *Window-sensitive*.
+- **Data-grounded governance.** Loss budget, recovery-time limit, single-company cap,
+  crypto cap and an ESG sector screen use `assets_universe.csv` sectors. Missing
+  company-level ESG controversy data is disclosed, not invented.
+- **Validated explanations.** Explanations are rejected and retried if they contain
+  digits, cite unknown evidence, or use forecast-like wording about returns.
 
 ## AWS contribution
 
-- **Amazon S3:** encrypted, private, versioned source data.
-- **AWS Lambda:** deterministic financial calculations.
-- **Amazon Bedrock:** grounded explanation through the Converse API.
-- **IAM:** least-privilege access to the function and selected model resources.
-- **CloudWatch:** correlated structured execution logs.
+- **Amazon S3:** private, encrypted, versioned data with checksums verified against
+  a manifest on every call.
+- **AWS Lambda:** all calculations, including the 2022 replay, recovery timing and
+  multi-scenario comparison on one calendar.
+- **Amazon Bedrock (Nova Lite):** grounded, validated explanation.
+- **IAM and CloudWatch:** least privilege and correlated structured logs.
 
-## User experience
+## User value
 
-The Next.js dashboard shows the investor persona, current and proposed allocation,
-risk metrics, performance comparison, agent delegation trace, governance controls,
-assumptions, limitations, and exact source objects. If AWS is unavailable, it shows
-an honest unavailable state instead of placeholder results.
-
-## Status and next step
-
-The complete local vertical slice, infrastructure template, data manifest, tests,
-CI, and dashboard are ready. The template is configured for the organizer workshop
-in `us-east-1` and the US Nova Lite inference profile. Core AWS infrastructure has
-been deployed and verified. One bounded Lambda acceptance test read the versioned
-S3 dataset and matched the local deterministic engine exactly. The next separately
-gated step is one Nova Lite explanation test; Bedrock has not yet been invoked.
+An investor sees what they asked for, what fits, and why, in dollars on their
+fictional balance and in months to recover. Every figure can be verified.
+Simulation only. Not financial advice. No real trades.

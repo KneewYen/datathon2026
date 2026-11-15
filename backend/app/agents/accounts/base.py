@@ -3,10 +3,14 @@ from __future__ import annotations
 from typing import Dict, Iterable, Type
 
 from app.agents.base import Agent
+from app.agents.strategies.balanced_index import BalancedIndexStrategyAgent
+from app.agents.strategies.crypto import CryptoStrategyAgent
 from app.agents.strategies.dividend import DividendStrategyAgent
+from app.agents.strategies.esg import ESGStrategyAgent
 from app.agents.strategies.growth import GrowthStrategyAgent
 from app.agents.strategies.momentum import MomentumStrategyAgent
 from app.agents.strategies.preservation import CapitalPreservationStrategyAgent
+from app.agents.strategies.quality import QualityStrategyAgent
 from app.domain.models import AgentFinding, AnalysisRequest
 
 
@@ -15,6 +19,10 @@ STRATEGY_AGENTS: Dict[str, Type[Agent]] = {
     "dividend": DividendStrategyAgent,
     "momentum": MomentumStrategyAgent,
     "preservation": CapitalPreservationStrategyAgent,
+    "esg": ESGStrategyAgent,
+    "quality": QualityStrategyAgent,
+    "balanced_index": BalancedIndexStrategyAgent,
+    "crypto": CryptoStrategyAgent,
 }
 
 

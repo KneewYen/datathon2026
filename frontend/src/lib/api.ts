@@ -37,7 +37,7 @@ export type Account = {
   risk: string;
   risk_label: string;
   persona: string;
-  horizon_agent: string;
+  horizon_profile: string;
   strategies: string[];
 };
 
@@ -47,9 +47,37 @@ export type IntegrationStatus = {
   detail: string;
 };
 
+export type PersonaScenario = {
+  question: string;
+  account_type: "TFSA" | "RRSP";
+  strategy_allocations: Record<string, number>;
+  shift: { from_strategy: string; to_strategy: string; amount: number };
+  portfolio_value: number;
+};
+
+export type RiskBudget = {
+  max_stress_drawdown: number;
+  single_position_cap: number;
+  crypto_cap: number;
+  max_months_underwater: number;
+};
+
 export type ApiMeta = {
   profiles: Record<string, unknown>;
   faq: string[];
+  scenarios: Record<PersonaId, PersonaScenario>;
+  challenge_prompts: Record<PersonaId, string[]>;
+  personas: Record<
+    PersonaId,
+    {
+      name: string;
+      account_type: string;
+      portfolio_value: number;
+      risk_budget: RiskBudget;
+      esg_excluded_sectors: string[];
+    }
+  >;
+  strategy_labels: Record<string, string>;
   integrations: {
     region: string | null;
     lambda: IntegrationStatus;
@@ -61,10 +89,10 @@ export type ApiMeta = {
 export type MetricEvidence = {
   evidence_id: string;
   label: string;
-  current: number;
-  proposed: number;
-  delta: number;
-  unit: "percent" | "ratio";
+  current: number | null;
+  proposed: number | null;
+  delta: number | null;
+  unit: "percent" | "ratio" | "months" | "cad";
   source: string;
   formula_version: string;
 };
@@ -101,13 +129,55 @@ export type AgentFinding = {
   evidence_ids: string[];
 };
 
+export type EvidenceEntry = {
+  token: string;
+  evidence_id: string;
+  label: string;
+  role: string;
+  value: number | null;
+  unit: string;
+  display: string;
+  source: string;
+  formula_version: string;
+};
+
+export type AnswerSegment = { type: "text"; text: string } | { type: "evidence"; text: string; token: string };
+
+export type RobustnessWindow = {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  observations: number;
+  conclusion: "risk_reduced" | "risk_increased" | "mixed";
+};
+
+export type StressProfile = {
+  maximum_drawdown: number;
+  total_return: number;
+  peak_to_trough: number;
+  peak_date: string | null;
+  trough_date: string | null;
+  recovery_date: string | null;
+  months_underwater: number | null;
+};
+
 export type AnalysisResponse = {
   analysis_id: string;
   question: string;
   persona_id: PersonaId;
   account_type: "TFSA" | "RRSP";
   answer: string;
+  answer_segments: AnswerSegment[];
+  evidence: Record<string, EvidenceEntry>;
   conclusion: "risk_reduced" | "risk_increased" | "mixed";
+  robustness: { windows?: RobustnessWindow[]; consistent?: boolean };
+  stress_test: {
+    window?: { id: string; label: string; start: string; end: string };
+    current?: StressProfile;
+    proposed?: StressProfile;
+  };
+  portfolio_value: number | null;
   current_allocations: Record<string, number>;
   proposed_allocations: Record<string, number>;
   metrics: MetricEvidence[];
@@ -122,28 +192,81 @@ export type AnalysisResponse = {
   disclaimer: string;
 };
 
+export type ScenarioEvidence = {
+  evidence_id: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  source: string;
+  formula_version: string;
+};
+
+export type ChallengeScenario = {
+  id: "baseline" | "requested" | "capped" | "alternative";
+  label: string;
+  description: string;
+  strategy_allocations: Record<string, number>;
+  largest_position_ticker: string;
+  evidence: ScenarioEvidence[];
+  recovery: Partial<StressProfile>;
+  findings: GovernanceFinding[];
+  within_profile: boolean;
+};
+
+export type ChallengeResponse = {
+  analysis_id: string;
+  persona_id: PersonaId;
+  question: string;
+  parsed_request: {
+    ticker: string;
+    name: string;
+    asset_class: string;
+    sector: string;
+    weight: number;
+    weight_source: "stated" | "stated_amount" | "assumed";
+  };
+  verdict: "aligned" | "cap" | "alternative" | "conflict";
+  recommended_scenario: string;
+  scenarios: ChallengeScenario[];
+  answer: string;
+  answer_segments: AnswerSegment[];
+  evidence: Record<string, EvidenceEntry>;
+  governance: GovernanceFinding[];
+  trace: TraceStep[];
+  assumptions: string[];
+  limitations: string[];
+  data_sources: string[];
+  windows: Record<string, { start: string; end: string; label?: string }>;
+  model_id: string;
+  disclaimer: string;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const USER_ID = "demo";
 
 export const DEMO_QUESTION =
-  "Would moving 20% of my TFSA from my growth strategy into my dividend strategy reduce my risk?";
+  "Would moving 20% of my TFSA from my tech-heavy growth strategy into a broad index strategy diversify me without abandoning growth?";
 
-export async function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
-  const response = await fetch(`${API_URL}/api/analysis`, {
+async function liveRequest<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      persona_id,
-      question: DEMO_QUESTION,
-      account_type: "TFSA",
-    }),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail = body?.detail ? `: ${body.detail}` : "";
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail ? `: ${payload.detail}` : "";
     throw new Error(`Live AWS analysis unavailable (${response.status})${detail}`);
   }
   return response.json();
+}
+
+export function runAnalysis(persona_id: PersonaId): Promise<AnalysisResponse> {
+  return liveRequest<AnalysisResponse>(`/api/analysis/persona/${persona_id}`);
+}
+
+export function runChallenge(persona_id: PersonaId, message: string): Promise<ChallengeResponse> {
+  return liveRequest<ChallengeResponse>("/api/challenge", { persona_id, message });
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {

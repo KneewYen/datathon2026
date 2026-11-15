@@ -5,11 +5,10 @@ export type Persona = {
   name: string;
   age: number;
   horizon: string;
-  horizonAgent: string;
   risk: string;
   goal: string;
+  tests: string;
   strategies: string[];
-  prompts: string[];
 };
 
 export const PERSONAS: Persona[] = [
@@ -18,41 +17,29 @@ export const PERSONAS: Persona[] = [
     name: "Amira",
     age: 26,
     horizon: "15+ years",
-    horizonAgent: "Long-Term",
     risk: "High",
     goal: "Long-term growth, still diversified",
-    strategies: ["Growth", "Crypto", "Momentum"],
-    prompts: [
-      "How much crypto fits my profile?",
-      "Am I too concentrated in tech?",
-    ],
+    tests: "High risk does not mean anything goes",
+    strategies: ["Growth", "Momentum", "Crypto (capped)", "Balanced index"],
   },
   {
     id: "mateo",
     name: "Mateo",
     age: 41,
     horizon: "8–12 years",
-    horizonAgent: "Mid-Term",
     risk: "Moderate",
     goal: "Balanced growth with ESG",
-    strategies: ["ESG", "Dividend", "Balanced Index"],
-    prompts: [
-      "Compare ESGV with SPY for me.",
-      "Should I hold energy stocks?",
-    ],
+    tests: "Values, not just return and risk",
+    strategies: ["Balanced index", "ESG", "Dividend", "Growth"],
   },
   {
     id: "robert",
     name: "Robert",
     age: 59,
     horizon: "3–5 years",
-    horizonAgent: "Short-Term",
     risk: "Low–moderate",
     goal: "Preserve capital, some growth",
-    strategies: ["Preservation", "Bond", "Quality"],
-    prompts: [
-      "Should I buy NVDA now?",
-      "How safe is my bond allocation?",
-    ],
+    tests: "Pushing back on a tempting request",
+    strategies: ["Capital preservation", "Quality", "Dividend"],
   },
 ];

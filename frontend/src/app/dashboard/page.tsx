@@ -7,6 +7,7 @@ import { Header } from "@/components/dashboard/Header";
 import { PillButton } from "@/components/dashboard/PillButton";
 import { DailyRecommendations } from "@/components/dashboard/DailyRecommendations";
 import { LiveAnalysisPanel } from "@/components/dashboard/LiveAnalysisPanel";
+import { ChallengePanel } from "@/components/dashboard/ChallengePanel";
 import {
   api,
   runAnalysis,
@@ -158,6 +159,8 @@ export default function DashboardPage({ searchParams }: { searchParams: SearchPa
           metaError={metaError}
           onRun={() => void executeAnalysis(personaId)}
         />
+
+        <ChallengePanel personaId={personaId} prompts={meta?.challenge_prompts?.[personaId] ?? []} />
 
         {/* Chat */}
         <section className="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
