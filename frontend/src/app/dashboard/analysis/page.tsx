@@ -19,13 +19,14 @@ export default function AnalysisPage() {
 
   return (
     <LiveAnalysisPanel
+      key={personaId}
       personaId={personaId}
       result={result}
       busy={busy}
       error={error}
       meta={meta}
       metaError={metaError}
-      onRun={() => void run()}
+      onRun={(input) => void run(input)}
     />
   );
 }

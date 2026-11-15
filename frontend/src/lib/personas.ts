@@ -57,11 +57,31 @@ export const allocationLabel = (allocations: Persona["allocations"]) =>
     .map(([name, weight]) => `${fmtPercent(weight * 100)} ${translateOr(`strategy.short.${name}`, name)}`)
     .join(" · ");
 
-export const proposedAllocations = (persona: Persona): Record<StrategyKey, number> => {
-  const { from, to, amount } = persona.scenario;
+export const proposedAllocations = (persona: Persona, scenario: Scenario = persona.scenario): Record<StrategyKey, number> => {
+  const { from, to, amount } = scenario;
   return {
     ...persona.allocations,
     [from]: persona.allocations[from] - amount,
     [to]: persona.allocations[to] + amount,
   };
 };
+
+const SUGGESTION_POOL: Scenario[] = [
+  { from: "growth", to: "dividend", amount: 0.1 },
+  { from: "growth", to: "preservation", amount: 0.1 },
+  { from: "dividend", to: "preservation", amount: 0.1 },
+  { from: "momentum", to: "preservation", amount: 0.1 },
+  { from: "growth", to: "dividend", amount: 0.2 },
+];
+
+const sameScenario = (a: Scenario, b: Scenario) => a.from === b.from && a.to === b.to && a.amount === b.amount;
+
+/** The investor's own scenario first, then a few other shifts they actually have enough in the source strategy to make. */
+export const suggestedScenarios = (persona: Persona): Scenario[] => [
+  persona.scenario,
+  ...SUGGESTION_POOL.filter(
+    (item) => persona.allocations[item.from] >= item.amount && !sameScenario(item, persona.scenario)
+  ),
+].slice(0, 4);
+
+export const STRATEGY_KEYS: StrategyKey[] = ["growth", "dividend", "momentum", "preservation"];
