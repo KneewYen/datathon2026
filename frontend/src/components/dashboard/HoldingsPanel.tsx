@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type Account, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck } from "@/lib/api";
 import { translate, useLanguage } from "@/i18n";
 import { fmtCad, fmtNumber, fmtPercent } from "@/i18n/format";
+import { accountName } from "@/i18n/labels";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
 import { useChat } from "@/features/chat";
 import { TradeWarningDialog } from "./TradeWarningDialog";
@@ -178,15 +179,10 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold ${
-                      active ? "bg-brand-500 text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
-                    }`}>
-                      {account.type === "Non-registered" ? "N" : account.type}
-                    </span>
-                    <span className="truncate text-[11px] font-semibold">{account.name}</span>
+                    <span className="truncate text-[11px] font-semibold">{accountName(account.name)}</span>
                   </span>
-                  <span className="mt-1 block pl-6 text-[10px] tabular-nums text-slate-400">
-                    {fmtCad(account.balance)}
+                  <span className="mt-1 block text-[10px] tabular-nums text-slate-400">
+                    {fmtCad(account.type === accountType && data ? data.total_value_cad : account.balance)}
                   </span>
                 </button>
               );
