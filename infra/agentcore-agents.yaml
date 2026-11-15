@@ -397,6 +397,8 @@ Resources:
       EnvironmentVariables:
         AWS_REGION: !Ref AWS::Region
         BEDROCK_MODEL_ID: !Ref BedrockModelId
+        AGENT_RUNTIME_NAME: !Sub portfolioguard_orchestrator_${Environment}
+        LLM_ROUTING: "on"
         INTAKE_AGENT_ARN: !GetAtt IntakeRuntime.AgentRuntimeArn
         MARKET_AGENT_ARN: !GetAtt MarketRuntime.AgentRuntimeArn
         CLASSIFIER_AGENT_ARN: !GetAtt ClassifierRuntime.AgentRuntimeArn

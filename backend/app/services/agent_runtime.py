@@ -43,9 +43,9 @@ def call(action: str, payload: Dict[str, Any], user_id: str = "demo") -> Any:
     if mode() == "local":
         return agent_app.handle(action, payload)
 
-    # Buy/sell checks go to the Orchestrator agent (its own AgentCore runtime, which calls the Intake,
-    # Market, Classifier and Explainer agents). Everything else still goes to the original runtime.
-    arn = (os.getenv("ORCHESTRATOR_AGENT_ARN") if action == "trade_check" else None) or os.getenv("AGENT_RUNTIME_ARN")
+    # Every call goes to the Orchestrator agent (its own AgentCore runtime), which routes it to the agent that
+    # owns it: Intake, Market, Classifier or Explainer. Without it, the original single runtime is used.
+    arn = os.getenv("ORCHESTRATOR_AGENT_ARN") or os.getenv("AGENT_RUNTIME_ARN")
     region = os.getenv("AWS_REGION")
     if not arn or not region:
         raise ServiceConfigurationError("AWS_REGION and AGENT_RUNTIME_ARN are required to reach the agents")

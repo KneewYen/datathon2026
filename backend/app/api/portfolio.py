@@ -4,7 +4,7 @@ import os
 import re
 from typing import Any, Dict, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.chat import _agents
@@ -47,13 +47,22 @@ def market(live: bool = False) -> Dict[str, Any]:
     return sell_guard_service.market_status(live)
 
 
+def _preload(user_id: str) -> None:
+    """Ask the agents to compute the answers that do not depend on who is asking, ahead of the first click."""
+    try:
+        _agents("preload", {"live": True, "user_id": user_id}, user_id)
+    except Exception:  # preloading is an optimisation: a failure just means the click computes it
+        pass
+
+
 @router.post("/market/refresh")
-def refresh_market() -> Dict[str, Any]:
+def refresh_market(background: BackgroundTasks, user_id: str = "demo") -> Dict[str, Any]:
     """Load the second dataset (the simulated market change) as the live market.
 
     Stateless: nothing is remembered on the server. The caller keeps the "live" choice and
     sends ``live=true`` with later requests, so every user and instance behaves the same.
     """
+    background.add_task(_preload, user_id)
     return sell_guard_service.market_status(True)
 
 

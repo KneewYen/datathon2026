@@ -73,6 +73,7 @@ class FakeAgentCore:
 
 def deployed(monkeypatch, reply):
     monkeypatch.setenv("AGENTS", "agentcore")
+    monkeypatch.delenv("ORCHESTRATOR_AGENT_ARN", raising=False)  # a developer's .env must not leak into the test
     monkeypatch.setenv("AGENT_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/x")
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     fake = FakeAgentCore(reply)
@@ -88,9 +89,18 @@ def test_gateway_forwards_to_the_aws_runtime_and_unwraps_the_result(monkeypatch)
     assert json.loads(sent["payload"]) == {"action": "chat", "payload": {"message": "hi"}}
 
 
+def test_every_call_goes_to_the_orchestrator_agent_when_it_is_configured(monkeypatch):
+    fake = deployed(monkeypatch, {"ok": True, "result": {}})
+    monkeypatch.setenv("ORCHESTRATOR_AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/orchestrator")
+    for action in ("chat", "accounts", "set_investor", "trade_check", "sentiment_ask", "analysis", "preload"):
+        agent_runtime.call(action, {}, "demo")
+    assert len(fake.calls) == 7 and all(c["agentRuntimeArn"].endswith("runtime/orchestrator") for c in fake.calls)
+
+
 def test_gateway_never_falls_back_to_local_agents(monkeypatch):
     monkeypatch.setenv("AGENTS", "agentcore")
     monkeypatch.delenv("AGENT_RUNTIME_ARN", raising=False)
+    monkeypatch.delenv("ORCHESTRATOR_AGENT_ARN", raising=False)
     with pytest.raises(ServiceConfigurationError):
         agent_runtime.call("chat", {"message": "hi"})
 

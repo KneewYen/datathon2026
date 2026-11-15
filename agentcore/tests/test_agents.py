@@ -48,8 +48,8 @@ def runtimes(monkeypatch):
 
 def fake_invoker(arn: str, request: dict, session: str):
     name = arn.rsplit("/", 1)[-1]
-    CALLS.append(name)
-    return AGENTS[name].work(request["payload"])
+    CALLS.append(name if not request.get("action") else f"{name}:{request['action']}")
+    return AGENTS[name].serve(request)
 
 
 def check(persona: str, ticker: str = "NVDA", account: str | None = None, action: str = "sell", **extra):
@@ -59,7 +59,8 @@ def check(persona: str, ticker: str = "NVDA", account: str | None = None, action
 
 def test_each_agent_is_its_own_runtime_called_in_order():
     out = check("robert")
-    assert CALLS == ["intake", "market", "classifier", "explainer"]
+    assert sorted(CALLS[:2]) == ["intake", "market"]  # Market runs in parallel with Intake
+    assert CALLS[2:] == ["classifier", "explainer"]
     assert [s["agent"] for s in out["trace"]] == ["Intake", "Market", "Classifier", "Explainer"]
     assert [s["runtime"] for s in out["trace"]] == ["intake", "market", "classifier", "explainer"]
 
@@ -82,7 +83,7 @@ def test_the_result_has_the_shape_the_app_expects():
 def test_a_step_run_out_of_order_pulls_in_the_earlier_ones():
     run = AGENTS["orchestrator"].Run({"action": "sell", "ticker": "NVDA", "persona": "robert", "live": True}, fake_invoker)
     run.classify()  # the model jumped straight to the Classifier
-    assert CALLS == ["intake", "market", "classifier"]
+    assert sorted(CALLS) == ["classifier", "intake", "market"]
     assert run.finish()["trace"][-1]["agent"] == "Explainer" and CALLS[-1] == "explainer"
 
 
@@ -102,3 +103,77 @@ def test_entrypoints_wrap_results_in_the_envelope():
     assert reply["ok"] is False and reply["status"] == 409
     reply = AGENTS["market"].invoke({"payload": {"ticker": "NVDA", "live": True}})
     assert reply["ok"] is True and reply["result"]["ticker"] == "NVDA"
+
+
+# ---- every call goes through the Orchestrator, which routes it to the owning agent ----------
+
+def route(action: str, payload: dict | None = None):
+    return AGENTS["orchestrator"].serve({"action": action, "payload": payload or {}}, fake_invoker, use_model=False)
+
+
+def test_investor_and_account_actions_go_to_intake():
+    saved = route("set_investor", {"user_id": "u1", "persona_id": "robert", "account_type": "RRSP"})
+    assert saved["risk_band"] == "low" and CALLS == ["intake:set_investor"]
+    assert route("get_investor", {"user_id": "u1"})["persona_id"] == "robert"
+    assert route("accounts", {"user_id": "u1"}) is not None and CALLS[-1] == "intake:accounts"
+
+
+def test_analysis_goes_to_the_explainer_and_sentiment_to_the_classifier(monkeypatch):
+    # The scenario analysis needs the AWS calculation Lambda and Bedrock, so the owning agent's handler is stubbed.
+    monkeypatch.setattr(AGENTS["explainer"], "owned", lambda action, payload: {"answer": "ok", "trace": []})
+    monkeypatch.setattr(AGENTS["classifier"], "owned", lambda action, payload: {"answer": "tone", "tool_calls": []})
+    out = route("analysis", {"persona_id": "amira"})
+    assert CALLS == ["explainer:analysis"] and out["trace"][0]["action"] == "route analysis to the Explainer agent"
+    assert route("sentiment_ask", {"question": "how is the news on NVDA?"})["answer"] == "tone"
+    assert CALLS[-1] == "classifier:sentiment_ask"
+
+
+def test_unknown_actions_are_refused():
+    common = sys.modules["common"]
+    with pytest.raises(common.AgentFailure):
+        route("drop_tables")
+
+
+def test_a_trade_message_in_chat_runs_the_pipeline_and_a_question_goes_to_the_explainer(monkeypatch):
+    from app.agents import llm_router
+
+    monkeypatch.setenv("LLM_ROUTING", "on")
+    monkeypatch.setattr(llm_router, "_route", lambda *a, **k: {"name": "trade_check", "args": {"action": "sell", "ticker": "NVDA"}})
+    reply = route("chat", {"user_id": "u2", "message": "should I dump nvidia?", "holdings_persona": "robert", "live": True, "lang": "en"})
+    assert reply["trade_check"]["verdict"] == "evidence_supported"
+    assert [s["agent"] for s in reply["trace"]][0] == "Global Orchestrator" and "Classifier" in [s["agent"] for s in reply["trace"]]
+    CALLS.clear()
+    monkeypatch.setattr(llm_router, "_route", lambda *a, **k: {"name": "other_question", "args": {}})
+    route("chat", {"user_id": "u2", "message": "what is a TFSA?", "lang": "en"})
+    assert CALLS == ["explainer:knowledge_chat"]
+
+
+def test_creating_an_account_in_chat_goes_to_intake():
+    reply = route("chat", {"user_id": "u3", "message": "open a new account for me", "lang": "en"})
+    assert CALLS == ["intake:chat"] and "trace" in reply
+
+
+# ---- preloading: agents whose answers do not depend on others compute ahead of time --------
+
+def test_preload_warms_market_and_classifier_so_the_click_finds_answers_waiting():
+    for module in (AGENTS["market"], AGENTS["classifier"]):
+        module._CACHE.clear()
+    warmed = route("preload", {"live": True, "user_id": "u4"})
+    assert CALLS == ["market:preload", "classifier:preload"]
+    assert warmed["market"] and warmed["classifier"]["preloaded"] == warmed["classifier"]["of"] > 0
+    out = check("robert")
+    steps = {s["agent"]: s["action"] for s in out["trace"]}
+    assert steps["Market"].startswith("preloaded answer") and steps["Classifier"].startswith("preloaded answer")
+    assert out["verdict"] == "evidence_supported"  # a cached answer is the same answer
+
+
+def test_preload_needs_the_live_market():
+    with pytest.raises(LookupError):
+        route("preload", {"live": False})
+
+
+def test_without_a_preload_the_agents_compute_on_the_click():
+    for module in (AGENTS["market"], AGENTS["classifier"]):
+        module._CACHE.clear()
+    steps = {s["agent"]: s["action"] for s in check("amira")["trace"]}
+    assert not steps["Market"].startswith("preloaded") and not steps["Classifier"].startswith("preloaded")

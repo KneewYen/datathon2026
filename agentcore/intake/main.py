@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp  # noqa: E402
 
-from common import envelope, run_agent  # noqa: E402
+from common import envelope, owned, run_agent  # noqa: E402
 
 app = BedrockAgentCoreApp()
 
@@ -56,9 +56,25 @@ def work(p: dict) -> dict:
     return run_agent("intake", SYSTEM, [assess_investor], "Assess the investor.", captured, "intake")
 
 
+def handle_owned(action: str, payload: dict):
+    return owned(action, payload)
+
+
+OWNED = {'chat', 'reject', 'approve', 'set_investor', 'clear_profile', 'accounts', 'delete_account', 'get_investor'}  # actions this agent runs itself, directly, without a model loop
+
+
+def serve(request: dict):
+    """One request: ``{"action": ..., "payload": {...}}``. No action means this agent's default step."""
+    action = request.get("action")
+    payload = request.get("payload") or {}
+    if action in OWNED:
+        return handle_owned(action, payload)
+    return work(payload)
+
+
 @app.entrypoint
 def invoke(payload, context=None):
-    return envelope(lambda: work((payload or {}).get("payload") or payload or {}))
+    return envelope(lambda: serve(payload or {}))
 
 
 if __name__ == "__main__":

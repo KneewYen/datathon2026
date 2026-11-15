@@ -128,6 +128,9 @@ def _runtime(_: Dict[str, Any]) -> Dict[str, Any]:
 ACTIONS: Dict[str, Callable[[Dict[str, Any]], Any]] = {
     "chat": _chat,
     "analysis": _analysis,
+    "knowledge_chat": lambda p: orchestrator.chat(
+        p.get("user_id", "demo"), p["message"], p.get("lang", "en"), p.get("holdings_persona"), bool(p.get("live"))
+    ),
     "approve": lambda p: orchestrator.approve(p["action_id"], p.get("risk"), p.get("lang", "en")),
     "reject": lambda p: orchestrator.reject(p["action_id"], p.get("lang", "en")),
     "accounts": _accounts,
