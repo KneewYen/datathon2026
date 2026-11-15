@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     user_id: str = "demo"
     message: str
     lang: str = "en"
+    holdings_persona: Optional[str] = None  # the investor on screen, so trade answers can show their position
 
 
 class ApproveRequest(BaseModel):
@@ -53,7 +54,7 @@ def chat(request: ChatRequest) -> Any:
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return orchestrator.chat(request.user_id, request.message, request.lang)
+    return orchestrator.chat(request.user_id, request.message, request.lang, request.holdings_persona)
 
 
 @router.post("/actions/{action_id}/approve")
@@ -67,10 +68,11 @@ def reject(action_id: str, lang: str = "en") -> Dict[str, Any]:
 
 
 @router.get("/accounts")
-def accounts(user_id: str = "demo") -> List[Dict[str, Any]]:
+def accounts(user_id: str = "demo", persona_id: Optional[str] = None) -> List[Dict[str, Any]]:
     from app import store
 
-    return store.accounts(user_id)
+    result = store.accounts(user_id)
+    return [account for account in result if persona_id is None or account.get("persona_id") == persona_id]
 
 
 @router.delete("/accounts/{account_id}")

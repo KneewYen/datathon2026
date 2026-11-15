@@ -29,6 +29,32 @@ export type ChatResponse = {
   warnings: string[];
   proposal: Proposal | null;
   suggestions: string[];
+  trade_check?: TradeCheck | null;
+  position?: TradePosition | null;
+  headlines?: Headline[] | null;
+  persona_fit?: PersonaFit | null;
+};
+
+export type PersonaFit = {
+  persona: { id: string; name: string; risk: string; horizon_years: string; goal: string };
+  stance: "fits" | "wait" | "careful";
+  headline: string;
+  why: string[];
+};
+
+export type Headline = { date: string; headline: string; sentiment: string | number | null; category: string };
+
+export type TradePosition = {
+  ticker: string;
+  action: TradeAction;
+  holds: boolean;
+  shares_held: number;
+  price: number;
+  sample_qty: number;
+  sample_amount_cad: number;
+  portfolio_pct: number;
+  cash_after_cad: number;
+  affordable: boolean;
 };
 
 export type Account = {
@@ -42,6 +68,7 @@ export type Account = {
   horizon_agent: string;
   strategies: string[];
   balance: number;
+  persona_id?: PersonaId;
 };
 
 export type IntegrationStatus = {
@@ -150,6 +177,7 @@ export type Holding = {
 
 export type Portfolio = {
   persona_id: PersonaId;
+  account_type?: string | null;
   refreshed: boolean;
   invested_cad: number;
   cash_cad: number;
@@ -249,10 +277,14 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  chat: (message: string) => post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang() }),
+  chat: (message: string, holdingsPersona?: PersonaId) =>
+    post<ChatResponse>("/api/chat", { user_id: USER_ID, message, lang: getLang(), holdings_persona: holdingsPersona }),
   approve: (id: string, risk: string | undefined) => post<ChatResponse>(`/api/actions/${id}/approve`, { risk, lang: getLang() }),
   reject: (id: string) => post<ChatResponse>(`/api/actions/${id}/reject?lang=${getLang()}`, {}),
-  accounts: () => get<Account[]>(`/api/accounts?user_id=${encodeURIComponent(USER_ID)}`),
+  accounts: (persona?: PersonaId) =>
+    get<Account[]>(
+      `/api/accounts?user_id=${encodeURIComponent(USER_ID)}${persona ? `&persona_id=${encodeURIComponent(persona)}` : ""}`,
+    ),
   deleteAccount: async (id: string) => {
     const response = await fetch(`${API_URL}/api/accounts/${id}?user_id=${encodeURIComponent(USER_ID)}`, { method: "DELETE" });
     if (!response.ok) throw new Error(translate("error.removeAccount", { status: response.status }));
@@ -260,7 +292,8 @@ export const api = {
   market: () => get<MarketStatus>("/api/market"),
   refreshMarket: () => post<MarketStatus>("/api/market/refresh", {}),
   resetMarket: () => post<MarketStatus>("/api/market/reset", {}),
-  portfolio: (persona: PersonaId) => get<Portfolio>(`/api/portfolio/${persona}`),
+  portfolio: (persona: PersonaId, accountType?: string) =>
+    get<Portfolio>(`/api/portfolio/${persona}${accountType ? `?account_type=${encodeURIComponent(accountType)}` : ""}`),
   tradeCheck: (ticker: string, action: TradeAction) =>
     get<TradeCheck>(`/api/trade-check/${encodeURIComponent(ticker)}?action=${action}`),
   features: () => get<{ flags: Record<string, boolean> }>("/api/features"),

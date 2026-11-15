@@ -65,3 +65,22 @@ STRATEGY_HOLDINGS: Dict[str, Dict[str, float]] = {
         "PG": 0.10,
     },
 }
+
+
+ACCOUNT_PRESETS: Dict[str, Dict[str, object]] = {
+    "Non-registered": {
+        "share": 0.50,
+        "cash_share": 0.06,
+        "allocations": {"growth": 0.45, "dividend": 0.25, "momentum": 0.20, "preservation": 0.10},
+    },
+    "TFSA": {
+        "share": 0.30,
+        "cash_share": 0.08,
+        "allocations": {"growth": 0.50, "dividend": 0.20, "momentum": 0.20, "preservation": 0.10},
+    },
+    "RRSP": {
+        "share": 0.20,
+        "cash_share": 0.10,
+        "allocations": {"growth": 0.25, "dividend": 0.35, "momentum": 0.10, "preservation": 0.30},
+    },
+}

@@ -1,8 +1,10 @@
 import type { ChatResponse } from "@/lib/api";
-import { useLanguage } from "@/i18n";
+import { useLanguage, type MessageKey } from "@/i18n";
+import { fmtCad, fmtNumber } from "@/i18n/format";
 import { agentName } from "@/i18n/labels";
 import { plain } from "@/lib/plainLanguage";
 import { ProposalCard } from "./ProposalCard";
+import { TradeCheckBody } from "./TradeCheckBody";
 
 export type ChatMessage =
   | { role: "user"; text: string }
@@ -65,6 +67,79 @@ export function Message({
                 <div className="font-mono text-sm font-semibold text-brand-800">{v}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {d.trade_check && (
+          <div className="mt-3 rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
+            <TradeCheckBody check={d.trade_check} headlines={d.headlines} />
+            {d.persona_fit && (
+              <div className="mt-4 rounded-md bg-white p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-semibold text-slate-700">{t("fit.title", { name: d.persona_fit.persona.name })}</div>
+                <div className="mt-0.5 text-[11px] text-slate-500">
+                  {t("fit.profile", {
+                    risk: d.persona_fit.persona.risk,
+                    years: d.persona_fit.persona.horizon_years,
+                  })}
+                </div>
+                <div className="mt-2 flex items-start gap-2">
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      d.persona_fit.stance === "fits"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : d.persona_fit.stance === "wait"
+                          ? "bg-sky-100 text-sky-800"
+                          : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {t(`fit.stance.${d.persona_fit.stance}` as MessageKey)}
+                  </span>
+                  <p className="text-sm font-medium text-slate-900">{d.persona_fit.headline}</p>
+                </div>
+                {d.persona_fit.why.length > 0 && (
+                  <>
+                    <div className="mt-2 text-xs font-semibold text-slate-600">{t("fit.why")}</div>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                      {d.persona_fit.why.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+            {d.position && (
+              <div className="mt-4 rounded-md bg-white p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-semibold text-slate-700">{t("chat.position.title", { ticker: d.position.ticker })}</div>
+                {d.position.holds || d.position.action === "buy" ? (
+                  <>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                      <div className="text-xs text-slate-600">
+                        {t("holdings.sharesLabel")}
+                        <div className="mt-1 text-sm font-medium text-slate-900">{fmtNumber(d.position.sample_qty, 2)}</div>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        {t("holdings.amountLabel")}
+                        <div className="mt-1 text-sm font-medium text-slate-900">{fmtNumber(d.position.sample_amount_cad, 2)}</div>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        {t("holdings.priceHold")}
+                        <div className="mt-1 text-sm font-medium text-slate-900">
+                          {t("holdings.priceHoldValue", { price: fmtNumber(d.position.price, 2), owned: fmtNumber(d.position.shares_held, 2) })}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {t("holdings.tradeSummary", { pct: fmtNumber(d.position.portfolio_pct, 1), cash: fmtCad(d.position.cash_after_cad) })}{" "}
+                      {t("chat.position.sample")}
+                      {!d.position.affordable && ` ${t("chat.position.unaffordable")}`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">{t("chat.position.notHeld", { ticker: d.position.ticker })}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

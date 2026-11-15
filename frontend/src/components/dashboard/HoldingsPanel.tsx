@@ -1,48 +1,19 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { api, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck, type TradeVerdict } from "@/lib/api";
-import { translate, useLanguage, type MessageKey } from "@/i18n";
-import { noteText } from "@/i18n/labels";
-import { fmtCad, fmtNumber, fmtPercent, fmtSigned } from "@/i18n/format";
+import { api, type Account, type Holding, type MarketStatus, type Portfolio, type TradeAction, type TradeCheck } from "@/lib/api";
+import { translate, useLanguage } from "@/i18n";
+import { fmtCad, fmtNumber, fmtPercent } from "@/i18n/format";
 import { PERSONAS, type PersonaId } from "@/lib/personas";
-
-const VERDICT_BADGE: Record<TradeVerdict, string> = {
-  panic_risk: "bg-amber-100 text-amber-800",
-  evidence_supported: "bg-emerald-100 text-emerald-800",
-  chasing_risk: "bg-amber-100 text-amber-800",
-  falling_knife: "bg-red-100 text-red-800",
-  dip_with_context: "bg-sky-100 text-sky-800",
-  mixed: "bg-slate-100 text-slate-700",
-  no_signal: "bg-slate-100 text-slate-500",
-};
-
-type T = (key: MessageKey, params?: Record<string, string | number>) => string;
-
-function evidence(check: TradeCheck, key: string) {
-  return check.evidence.find((e) => e.evidence_id.endsWith(`:${key}`))?.value ?? null;
-}
-
-function explain(check: TradeCheck, t: T) {
-  const sentiment = evidence(check, "sentiment");
-  const tone =
-    sentiment === null
-      ? ""
-      : t("explain.tone", { tone: t(`holdings.tone.${sentiment >= 0.3 ? "upbeat" : sentiment <= -0.3 ? "negative" : "neutral"}`) });
-  return t(`explain.${check.verdict}` as MessageKey, {
-    t: check.ticker,
-    drop: fmtNumber(Math.abs(evidence(check, "drop") ?? 0), 1),
-    rise: fmtNumber(evidence(check, "rise") ?? 0, 1),
-    volume: fmtNumber(evidence(check, "volume") ?? 0, 1),
-    breadth: fmtNumber(Math.round(evidence(check, "breadth") ?? 0)),
-    company: fmtNumber(Math.round(evidence(check, "company_news") ?? 0)),
-    tone,
-  });
-}
+import { useChat } from "@/features/chat";
+import { TradeWarningDialog } from "./TradeWarningDialog";
 
 export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
-  const { t, tOr } = useLanguage();
+  const { t } = useLanguage();
+  const chat = useChat();
   const persona = PERSONAS.find((p) => p.id === personaId)!;
   const [data, setData] = useState<Portfolio | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountType, setAccountType] = useState("Non-registered");
   const [market, setMarket] = useState<MarketStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +22,13 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
   const [cashDelta, setCashDelta] = useState(0);
   const [shares, setShares] = useState("");
   const [note, setNote] = useState<string | null>(null);
+  const [warnOpen, setWarnOpen] = useState(false); // the signals popup, shown every time Buy or Sell is clicked
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let live = true;
     api
-      .portfolio(personaId)
+      .portfolio(personaId, accountType)
       .then((result) => {
         if (!live) return;
         setData(result);
@@ -65,11 +37,12 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
       .catch((reason) => {
         if (live) setError(reason instanceof Error ? reason.message : translate("holdings.err.load"));
       });
+    api.accounts(personaId).then((list) => live && setAccounts(list)).catch(() => {});
     api.market().then((status) => live && setMarket(status)).catch(() => {});
     return () => {
       live = false;
     };
-  }, [personaId]);
+  }, [personaId, accountType]);
 
   const refreshed = data?.refreshed ?? false;
 
@@ -83,7 +56,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
     setError(null);
     try {
       setMarket(await api.refreshMarket());
-      setData(await api.portfolio(personaId));
+      setData(await api.portfolio(personaId, accountType));
       setCheck(null);
       setNote(null);
     } catch (reason) {
@@ -95,7 +68,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
 
   async function resetMarket() {
     setMarket(await api.resetMarket());
-    setData(await api.portfolio(personaId));
+    setData(await api.portfolio(personaId, accountType));
     setCheck(null);
     setDeltas({});
     setCashDelta(0);
@@ -109,6 +82,7 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
       const owned = holding ? holding.shares + (deltas[ticker] ?? 0) : 0;
       setShares(String(Math.max(1, Math.round(owned * 0.1))));
       setCheck(await api.tradeCheck(ticker, action));
+      setWarnOpen(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("holdings.err.check"));
     }
@@ -132,6 +106,22 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
         : check.action === "buy" && amount > cash + 1e-9
           ? t("holdings.err.cash", { cash: fmtCad(cash) })
           : null;
+
+  function backOut() {
+    if (check) setNote(t(check.action === "buy" ? "holdings.note.cancelBuy" : "holdings.note.cancelSell", { ticker: check.ticker }));
+    setWarnOpen(false);
+    setCheck(null);
+  }
+
+  /** Close the popup and ask the assistant, where the full detail lives. */
+  function openDetails() {
+    if (!check) return;
+    const question = t(check.action === "buy" ? "warn.q.buy" : "warn.q.sell", { ticker: check.ticker });
+    setWarnOpen(false);
+    setCheck(null);
+    chat.openChat();
+    chat.send(question);
+  }
 
   function confirmTrade() {
     if (!check || tradeError) return;
@@ -158,6 +148,50 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
               ? t("holdings.refreshed", { rows: market?.new_price_rows ?? 0, headlines: market?.new_headlines ?? 0 })
               : t("holdings.refreshHint")}
           </p>
+        </div>
+        <div className="w-full sm:max-w-[31rem]">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              {t("holdings.account")}
+            </span>
+            <span className="text-[10px] text-slate-400">{t("holdings.accountHint")}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
+            {accounts.map((account) => {
+              const active = account.type === accountType;
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setAccountType(account.type);
+                    setCheck(null);
+                    setDeltas({});
+                    setCashDelta(0);
+                    setNote(null);
+                  }}
+                  className={`group rounded-lg px-2.5 py-2 text-left transition ${
+                    active
+                      ? "bg-white text-navy shadow-sm ring-1 ring-slate-200"
+                      : "text-slate-500 hover:bg-white/70 hover:text-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold ${
+                      active ? "bg-brand-500 text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
+                    }`}>
+                      {account.type === "Non-registered" ? "N" : account.type}
+                    </span>
+                    <span className="truncate text-[11px] font-semibold">{account.name}</span>
+                  </span>
+                  <span className="mt-1 block pl-6 text-[10px] tabular-nums text-slate-400">
+                    {fmtCad(account.balance)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {refreshed ? (
@@ -249,74 +283,12 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
         </ul>
       </div>
 
-      {check && (
+      {check && !warnOpen && (
         <div ref={cardRef} className="mt-4 scroll-mt-20 rounded-md bg-slate-50 p-4 ring-1 ring-slate-200">
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${VERDICT_BADGE[check.verdict]}`}>
-              {t(`verdict.${check.verdict}` as MessageKey)}
-            </span>
-            <span className="text-sm font-medium">
-              {t(check.action === "buy" ? "holdings.cardBuy" : "holdings.cardSell", { ticker: check.ticker })}
-            </span>
+          <div className="text-sm font-medium">
+            {t(check.action === "buy" ? "holdings.cardBuy" : "holdings.cardSell", { ticker: check.ticker })}
           </div>
-          <p className="mt-2 text-sm text-slate-700">{explain(check, t)}</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {check.score && (
-              <div>
-                <div className="flex justify-between text-xs text-slate-600">
-                  <span>{tOr(`score.${check.score.name}`, check.score.name)}</span>
-                  <span className="font-semibold text-slate-800">{fmtNumber(Math.round(check.score.value))}/100</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-2 rounded-full bg-brand-500" style={{ width: `${check.score.value}%` }} />
-                </div>
-                <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                  <span>{tOr(`score.${check.score.low_label}`, check.score.low_label)}</span>
-                  <span>{tOr(`score.${check.score.high_label}`, check.score.high_label)}</span>
-                </div>
-              </div>
-            )}
-            <div>
-              <div className="flex justify-between text-xs text-slate-600">
-                <span>{t("holdings.sentiment")}</span>
-                <span className="font-semibold text-slate-800">
-                  {check.sentiment == null
-                    ? t("holdings.notScored")
-                    : `${fmtSigned(check.sentiment, 2)} · ${check.sentiment_label ? t(`holdings.tone.${check.sentiment_label}` as MessageKey) : ""}`}
-                </span>
-              </div>
-              <div className="relative mt-1 h-2 rounded-full bg-slate-200">
-                <span className="absolute left-1/2 top-0 h-2 w-px bg-slate-400" />
-                {check.sentiment != null && (
-                  <span
-                    className="absolute top-[-2px] h-3 w-3 -translate-x-1/2 rounded-full bg-brand-500"
-                    style={{ left: `${(check.sentiment + 1) * 50}%` }}
-                  />
-                )}
-              </div>
-              <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                <span>{t("holdings.negative")}</span>
-                <span>{t("holdings.upbeat")}</span>
-              </div>
-            </div>
-          </div>
-          <ul className="mt-3 space-y-1 text-xs text-slate-600">
-            {check.evidence
-              .filter((e) => e.value !== null)
-              .map((e) => (
-                <li key={e.evidence_id} className="flex justify-between gap-3">
-                  <span>{tOr(`evidence.${e.evidence_id.split(":").pop()}`, e.label)}</span>
-                  <span className="font-medium text-slate-800">
-                    {e.unit === "percent"
-                      ? fmtPercent(e.value as number, 1)
-                      : e.unit === "x"
-                        ? `${fmtNumber(e.value as number, 1)}×`
-                        : fmtNumber(e.value as number, 1)}
-                  </span>
-                </li>
-              ))}
-          </ul>
-          <div className="mt-4 grid gap-3 rounded-md bg-white p-3 ring-1 ring-slate-200 sm:grid-cols-3">
+          <div className="mt-3 grid gap-3 rounded-md bg-white p-3 ring-1 ring-slate-200 sm:grid-cols-3">
             <label className="text-xs text-slate-600">
               {t("holdings.sharesLabel")}
               <input
@@ -378,11 +350,10 @@ export function HoldingsPanel({ personaId }: { personaId: PersonaId }) {
               {t("holdings.cancel")}
             </button>
           </div>
-          <p className="mt-3 text-[11px] text-slate-400">
-            {t("holdings.footer", { limitations: check.limitations.map(noteText).join(" ") })}
-          </p>
         </div>
       )}
+
+      {warnOpen && check && <TradeWarningDialog check={check} onBack={backOut} onProceed={() => setWarnOpen(false)} onDetails={openDetails} />}
 
       {note && <p className="mt-3 text-sm text-slate-600">{note}</p>}
     </section>

@@ -9,7 +9,7 @@ from app.agents.accounts import RRSPAccountAgent, TFSAAccountAgent
 from app.agents.explainability import ExplainabilityAgent
 from app.agents.governance import GovernanceAgent
 from app.agents.profile import get_persona
-from app.agents import account_creation, knowledge, profile
+from app.agents import account_creation, knowledge, persona_fit, profile, trade_intent
 from app import i18n, store
 from app.profiles import PROFILES
 from app.agents.signals import macro
@@ -20,7 +20,8 @@ from app.domain.models import (
     PerformancePoint,
     TraceStep,
 )
-from app.domain.presets import STRATEGY_HOLDINGS
+from app.domain.presets import PERSONAS, STRATEGY_HOLDINGS
+from app.services import sell_guard_service
 from app.services.lambda_tools import invoke
 
 DISCLAIMER = "Simulation only. Not financial advice."
@@ -165,7 +166,7 @@ class GlobalOrchestrator:
             model_id=explanation.model_id,
         )
 
-    def chat(self, user_id: str, message: str, lang: str = "en") -> Dict[str, Any]:
+    def chat(self, user_id: str, message: str, lang: str = "en", holdings_persona: str | None = None) -> Dict[str, Any]:
         """Handle the conversational account and knowledge-base flow."""
         lang = i18n.normalize(lang)
         p = lambda en, fr: i18n.pick(lang, en, fr)  # noqa: E731  (en/fr picker)
@@ -219,6 +220,10 @@ class GlobalOrchestrator:
                 trace,
                 proposal={"id": action_id, "type": "create_account", **recommendation},
             )
+
+        trade = trade_intent.parse(message)
+        if trade:
+            return self._trade_check_reply(trade[0], trade[1], trace, lang, holdings_persona)
 
         entry = knowledge.match(message, lang)
         if entry:
@@ -338,6 +343,77 @@ class GlobalOrchestrator:
             and re.search(r"account|compte", folded)
         )
 
+    def _trade_check_reply(
+        self, action: str, ticker: str, trace: List[Dict[str, Any]], lang: str, persona_id: str | None = None
+    ) -> Dict[str, Any]:
+        """Answer "should I sell/buy X?" with the live trade-check evidence (no model call)."""
+        p = lambda en, fr: i18n.pick(lang, en, fr)  # noqa: E731
+        verb = p("selling" if action == "sell" else "buying", "la vente" if action == "sell" else "l'achat")
+        fr_check = "vérification de vente" if action == "sell" else "vérification d'achat"
+        trace[0]["action"] = p(
+            f"detect intent: {action} check for {ticker}, route to Sell Guard",
+            f"détecter l'intention : {fr_check} pour {ticker}, acheminer vers le garde-fou",
+        )
+        trace.append(
+            {
+                "agent": "Sell Guard",
+                "action": p(
+                    "read live prices, volume and scored headlines, apply fixed rules",
+                    "lire les prix, volumes et titres évalués, appliquer des règles fixes",
+                ),
+            }
+        )
+        sources = [p("Simulated market data and scored headlines", "Données de marché simulées et titres évalués")]
+        warnings = [p(DISCLAIMER, "Simulation seulement. Ce ne sont pas des conseils financiers.")]
+        try:
+            result = sell_guard_service.evaluate(action, ticker)
+        except LookupError:
+            return self._reply(
+                p(
+                    f"I can check {verb} {ticker} once the live market is loaded. Refresh the market on the Holdings tab, then ask again.",
+                    f"Je peux vérifier {verb} de {ticker} une fois le marché en direct chargé. Actualisez le marché dans l'onglet Titres, puis redemandez.",
+                ),
+                trace,
+                sources=sources,
+                warnings=warnings,
+            )
+        except ValueError:
+            return self._reply(
+                p(
+                    f"I don't have market data for {ticker} in this simulation.",
+                    f"Je n'ai pas de données de marché pour {ticker} dans cette simulation.",
+                ),
+                trace,
+                warnings=warnings,
+            )
+        position = sell_guard_service.position(persona_id, ticker, action) if persona_id in PERSONAS else None
+        if position is not None:
+            trace.append(
+                {
+                    "agent": "Persona Fit",
+                    "action": p(
+                        "compare the verdict with the investor's risk, horizon and goal",
+                        "comparer le verdict au risque, à l'horizon et à l'objectif de l'investisseur",
+                    ),
+                }
+            )
+        return self._reply(
+            p(
+                f"Here is what the live data says about **{verb} {ticker}**.",
+                f"Voici ce que disent les données en direct sur **{verb} {ticker}**.",
+            ),
+            trace,
+            sources=sources,
+            warnings=warnings,
+            trade_check=result,
+            position=position,
+            persona_fit=persona_fit.fit(persona_id, action, ticker, result["verdict"], position, lang) if position else None,
+            headlines=sell_guard_service.sentiment_summary(ticker)["headlines"][-3:][::-1],
+            suggestions=[
+                p(f"Should I {'buy' if action == 'sell' else 'sell'} {ticker}?", f"Devrais-je {'acheter' if action == 'sell' else 'vendre'} {ticker} ?")
+            ],
+        )
+
     @staticmethod
     def _reply(answer: str, trace: List[Dict[str, Any]], **kwargs: Any) -> Dict[str, Any]:
         return {
@@ -348,4 +424,8 @@ class GlobalOrchestrator:
             "warnings": kwargs.get("warnings", []),
             "proposal": kwargs.get("proposal"),
             "suggestions": kwargs.get("suggestions", []),
+            "trade_check": kwargs.get("trade_check"),
+            "position": kwargs.get("position"),
+            "headlines": kwargs.get("headlines"),
+            "persona_fit": kwargs.get("persona_fit"),
         }
