@@ -21,3 +21,6 @@ infra/samconfig.toml
 
 # OS
 .DS_Store
+
+# Datathon project specification file
+datathon_Project_Spec/
