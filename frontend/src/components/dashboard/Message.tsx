@@ -1,4 +1,7 @@
 import type { ChatResponse } from "@/lib/api";
+import { useLanguage } from "@/i18n";
+import { agentName } from "@/i18n/labels";
+import { plain } from "@/lib/plainLanguage";
 import { ProposalCard } from "./ProposalCard";
 
 export type ChatMessage =
@@ -38,6 +41,7 @@ export function Message({
   onApprove: (id: string, risk: string) => void;
   onReject: (id: string) => void;
 }) {
+  const { t } = useLanguage();
   if (msg.role === "user") {
     return (
       <div className="ml-auto max-w-[80%] rounded-lg rounded-br-md bg-brand-500 px-4 py-2 text-white">{msg.text}</div>
@@ -48,7 +52,7 @@ export function Message({
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-        AI
+        {t("chat.avatar")}
       </div>
       <div className="min-w-0 max-w-[90%] flex-1 rounded-lg rounded-tl-md bg-white px-4 py-3 ring-1 ring-slate-200">
         <Rich text={d.answer} />
@@ -90,25 +94,25 @@ export function Message({
 
         {d.trace?.length > 0 && (
           <details className="mt-3 text-xs text-slate-500">
-            <summary className="cursor-pointer text-brand-600 hover:text-brand-700">How I got this</summary>
+            <summary className="cursor-pointer text-brand-600 hover:text-brand-700">{t("chat.howIGotThis")}</summary>
             <ol className="mt-2 space-y-1">
-              {d.trace.map((t, i) => (
+              {d.trace.map((step, i) => (
                 <li key={i}>
-                  {i + 1}. <b className="text-slate-700">{t.agent}</b>: {t.action}
+                  {i + 1}. <b className="text-slate-700">{agentName(step.agent)}</b>: {plain(step.action)}
                 </li>
               ))}
             </ol>
             {d.sources?.length > 0 && (
               <ul className="mt-2 list-disc pl-4">
                 {d.sources.map((s) => (
-                  <li key={s}>{s}</li>
+                  <li key={s}>{plain(s)}</li>
                 ))}
               </ul>
             )}
           </details>
         )}
 
-        {d.warnings?.length > 0 && <p className="mt-2 text-xs text-slate-400">{d.warnings.join(" ")}</p>}
+        {d.warnings?.length > 0 && <p className="mt-2 text-xs text-slate-400">{plain(d.warnings.join(" "))}</p>}
       </div>
     </div>
   );
