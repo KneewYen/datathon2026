@@ -5,6 +5,7 @@ import {
   api,
   INVESTMENT_QUESTION,
   type AccountOption,
+  type DelegationRecord,
   type ExecutionEvent,
   type InvestmentAnalysisResponse,
   type WorkflowStartResponse,
@@ -111,6 +112,46 @@ function ExecutionTrace({ events }: { events: ExecutionEvent[] }) {
         );
       })}
     </ol>
+  );
+}
+
+function DelegationLedger({ records }: { records: DelegationRecord[] }) {
+  return (
+    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+      <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+        <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.1em] text-slate-500">
+          <tr>
+            <th className="px-3 py-2">Decision maker</th>
+            <th className="px-3 py-2">Selected target</th>
+            <th className="px-3 py-2">Source</th>
+            <th className="px-3 py-2">Actual invocation</th>
+            <th className="px-3 py-2">Rationale and evidence</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {records.map((record) => (
+            <tr key={record.delegation_id} className={record.selected ? "" : "bg-slate-50/70 text-slate-500"}>
+              <td className="px-3 py-3 font-semibold text-navy">{record.decision_maker.replaceAll("_", " ")}</td>
+              <td className="px-3 py-3">
+                <span className="block font-mono text-[10px]">{record.target}</span>
+                <span>{record.selected ? "selected" : "not selected"} · {record.target_kind}</span>
+              </td>
+              <td className="px-3 py-3">
+                <span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${record.decision_source === "model" ? "bg-brand-50 text-brand-700" : "bg-amber-100 text-amber-900"}`}>
+                  {record.decision_source === "model" ? "model decision" : "mandatory policy"}
+                </span>
+              </td>
+              <td className="px-3 py-3 font-semibold uppercase">{record.actual_invocation_status.replaceAll("_", " ")}</td>
+              <td className="max-w-md px-3 py-3 leading-relaxed">
+                <p>{record.rationale}</p>
+                <p className="mt-1 font-mono text-[9px] text-slate-400">Parent: {record.parent_event_id}</p>
+                {record.evidence_ids.length > 0 && <p className="mt-1 text-[10px] text-link">Evidence: {record.evidence_ids.join(", ")}</p>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -243,11 +284,12 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
           </div>
         )}
 
-        {result?.status === "completed" && (
+        {(result?.status === "completed" || result?.status === "partial") && (
           <div className="space-y-8" aria-live="polite">
             <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="rounded-md bg-emerald-950 p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-300">Grounded cross-account synthesis</p>
+                {result.status === "partial" && <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-amber-300">Partial execution — incomplete routes were excluded</p>}
                 <p className="mt-2 text-sm leading-relaxed text-emerald-50">{result.answer}</p>
                 <p className="mt-3 text-[10px] text-emerald-200">Explanation model: {result.model_id}</p>
               </div>
@@ -310,6 +352,14 @@ export function InvestmentIntelligencePanel({ autoRun = false }: { autoRun?: boo
                   <ul>{[...result.assumptions, ...result.limitations].map((item) => <li key={item}>{item}</li>)}</ul>
                 </details>
               </div>
+            </div>
+
+            <div>
+              <h2 className="border-b border-navy pb-3 text-xl font-semibold">Persisted delegation ledger</h2>
+              <p className="my-3 text-xs leading-relaxed text-slate-500">
+                These records are emitted by routing validators and reconciled with actual agent and tool results. Model selections and mandatory safety-policy actions are shown separately; nonselected capabilities remain not invoked.
+              </p>
+              <DelegationLedger records={result.delegations} />
             </div>
           </div>
         )}

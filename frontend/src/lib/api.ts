@@ -139,6 +139,20 @@ export type ExecutionEvent = {
   error: string | null;
 };
 
+export type DelegationRecord = {
+  delegation_id: string;
+  request_id: string;
+  decision_maker: string;
+  target_kind: "account" | "agent" | "tool";
+  target: string;
+  selected: boolean;
+  decision_source: "model" | "mandatory_policy";
+  rationale: string;
+  parent_event_id: string;
+  actual_invocation_status: "selected" | "completed" | "blocked" | "failed" | "not_invoked";
+  evidence_ids: string[];
+};
+
 export type AccountOption = {
   account_id: string;
   account_type: "TFSA" | "RRSP";
@@ -177,7 +191,7 @@ export type ResearchResult = {
 
 export type InvestmentAnalysisResponse = {
   request_id: string;
-  status: "completed" | "clarification_required";
+  status: "completed" | "partial" | "clarification_required";
   question: string;
   clarification: string | null;
   intent: InvestmentIntent | null;
@@ -189,6 +203,7 @@ export type InvestmentAnalysisResponse = {
   research: ResearchResult;
   evidence: EvidenceRecord[];
   trace: ExecutionEvent[];
+  delegations: DelegationRecord[];
   answer: string;
   assumptions: string[];
   limitations: string[];
