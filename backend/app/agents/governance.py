@@ -175,3 +175,90 @@ class GovernanceAgent:
                 )
             )
         return findings
+
+    def evaluate_investment(
+        self,
+        intent: dict,
+        accounts: list[dict],
+        options: list[dict],
+        research_status: str,
+    ) -> list[GovernanceFinding]:
+        account_map = {account["id"]: account for account in accounts}
+        findings = [
+            GovernanceFinding(
+                rule_id="SIMULATION_ONLY",
+                severity="info",
+                message="The workflow compares fictional account scenarios and cannot execute a trade.",
+            ),
+            GovernanceFinding(
+                rule_id="HISTORICAL_PRICE_ONLY",
+                severity="info",
+                message="Purchase calculations use the latest available historical dataset close, not a real-time quote.",
+            ),
+            GovernanceFinding(
+                rule_id="CURRENCY_CONVERSION_DISCLOSED",
+                severity="info",
+                message=f"The proposed amount is interpreted in {intent['currency']} and all comparisons are reported in CAD.",
+            ),
+        ]
+        for option in options:
+            account = account_map[option["account_id"]]
+            evidence_ids = option.get("evidence_ids", [])
+            if option["compatibility"] == "blocked":
+                findings.append(
+                    GovernanceFinding(
+                        rule_id=f"INSUFFICIENT_CASH_{account['type']}",
+                        severity="block",
+                        message=f"The {account['type']} does not have enough fictional cash for this purchase.",
+                        evidence_ids=[item for item in evidence_ids if item.endswith(".cash")],
+                    )
+                )
+            if option["remaining_cash_cad"] < account["risk_constraints"]["minimum_cash_cad"]:
+                findings.append(
+                    GovernanceFinding(
+                        rule_id=f"CASH_FLOOR_{account['type']}",
+                        severity="warning",
+                        message=f"The {account['type']} purchase would breach its fictional minimum cash constraint.",
+                        evidence_ids=[item for item in evidence_ids if item.endswith(".cash")],
+                    )
+                )
+            if option["proposed_nvda_exposure"] > account["risk_constraints"]["max_single_company_exposure"]:
+                findings.append(
+                    GovernanceFinding(
+                        rule_id=f"CONCENTRATION_LIMIT_{account['type']}",
+                        severity="warning",
+                        message=f"Covered direct and indirect NVIDIA exposure would exceed the {account['type']} concentration limit.",
+                        evidence_ids=[item for item in evidence_ids if item.endswith(".nvda_exposure")],
+                    )
+                )
+            if account["risk_tolerance"] == "conservative" and option["compatibility"] != "blocked":
+                findings.append(
+                    GovernanceFinding(
+                        rule_id=f"RISK_TOLERANCE_CONFLICT_{account['type']}",
+                        severity="warning",
+                        message=f"A single-company technology purchase requires caution under the {account['type']}'s conservative retirement objective.",
+                        evidence_ids=[
+                            item
+                            for item in evidence_ids
+                            if item.endswith(".volatility") or item.endswith(".maximum_drawdown")
+                        ],
+                    )
+                )
+        compatibilities = {option["compatibility"] for option in options}
+        if "compatible" in compatibilities and ({"caution", "conflict", "blocked"} & compatibilities):
+            findings.append(
+                GovernanceFinding(
+                    rule_id="CROSS_ACCOUNT_CONFLICT",
+                    severity="warning",
+                    message="The account agents reached different suitability conclusions, so the final answer must preserve that conflict.",
+                )
+            )
+        if research_status != "available":
+            findings.append(
+                GovernanceFinding(
+                    rule_id="LIVE_RESEARCH_UNAVAILABLE",
+                    severity="warning",
+                    message="No approved live news provider was available; the answer must not make recent-news claims.",
+                )
+            )
+        return findings

@@ -1,0 +1,47 @@
+{
+  "fixture_version": "fictional-investor-v1",
+  "fictional": true,
+  "investor": {
+    "id": "investor-demo-001",
+    "name": "Jordan Lee",
+    "base_currency": "CAD",
+    "description": "Fictional investor created for the PortfolioGuard AI demonstration."
+  },
+  "accounts": [
+    {
+      "id": "tfsa-demo-001",
+      "name": "Jordan's Growth TFSA",
+      "type": "TFSA",
+      "risk_tolerance": "aggressive",
+      "objective": "Long-term tax-free growth with diversified technology exposure",
+      "time_horizon_years": 18,
+      "cash_cad": 7200.0,
+      "holdings": [
+        {"ticker": "NVDA", "quantity": 18.0},
+        {"ticker": "QQQ", "quantity": 35.0},
+        {"ticker": "SPY", "quantity": 12.0},
+        {"ticker": "SHOP.TO", "quantity": 25.0}
+      ],
+      "strategy_allocations": {"growth": 0.65, "momentum": 0.20, "dividend": 0.05, "preservation": 0.10},
+      "risk_constraints": {"max_single_company_exposure": 0.25, "minimum_cash_cad": 1000.0}
+    },
+    {
+      "id": "rrsp-demo-001",
+      "name": "Jordan's Retirement RRSP",
+      "type": "RRSP",
+      "risk_tolerance": "conservative",
+      "objective": "Retirement capital preservation with dividend income",
+      "time_horizon_years": 7,
+      "cash_cad": 9400.0,
+      "holdings": [
+        {"ticker": "SPY", "quantity": 40.0},
+        {"ticker": "XIU.TO", "quantity": 100.0},
+        {"ticker": "XBB.TO", "quantity": 150.0},
+        {"ticker": "ZST.TO", "quantity": 80.0},
+        {"ticker": "PG", "quantity": 20.0}
+      ],
+      "strategy_allocations": {"growth": 0.10, "momentum": 0.05, "dividend": 0.35, "preservation": 0.50},
+      "risk_constraints": {"max_single_company_exposure": 0.10, "minimum_cash_cad": 4000.0}
+    }
+  ]
+}

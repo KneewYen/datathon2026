@@ -6,10 +6,20 @@ import json
 import logging
 
 try:
-    from .calculations import compare_strategy_shift
+    from .calculations import (
+        analyze_holdings_exposure,
+        compare_strategy_shift,
+        market_snapshot,
+        simulate_account_purchase,
+    )
     from .data_access import load_dataset_from_s3
 except ImportError:  # Lambda CodeUri places modules at the runtime root.
-    from calculations import compare_strategy_shift
+    from calculations import (
+        analyze_holdings_exposure,
+        compare_strategy_shift,
+        market_snapshot,
+        simulate_account_purchase,
+    )
     from data_access import load_dataset_from_s3
 
 
@@ -32,9 +42,16 @@ def handler(event, context):
         )
     )
     try:
-        if operation != "compare_strategy_shift":
+        operations = {
+            "compare_strategy_shift": compare_strategy_shift,
+            "analyze_holdings_exposure": analyze_holdings_exposure,
+            "market_snapshot": market_snapshot,
+            "simulate_account_purchase": simulate_account_purchase,
+        }
+        calculation = operations.get(operation)
+        if calculation is None:
             raise ValueError(f"unsupported operation: {operation}")
-        result = compare_strategy_shift(event, load_dataset_from_s3())
+        result = calculation(event, load_dataset_from_s3())
         result["aws_request_id"] = request_id
         logger.info(
             json.dumps(

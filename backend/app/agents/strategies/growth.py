@@ -11,6 +11,16 @@ class GrowthStrategyAgent(Agent):
     role = "Assess growth exposure and concentration without forecasting returns."
 
     def plan(self, context: Dict[str, Any]) -> AgentFinding:
+        if context.get("workflow") == "investment_purchase":
+            return AgentFinding(
+                agent=self.name,
+                role=self.role,
+                summary=(
+                    f"Measure direct and ETF look-through {context['ticker']} exposure, then "
+                    "simulate how the purchase changes growth concentration and account risk."
+                ),
+                requested_operations=["analyze_holdings_exposure", "simulate_account_purchase"],
+            )
         return AgentFinding(
             agent=self.name,
             role=self.role,

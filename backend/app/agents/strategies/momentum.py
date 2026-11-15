@@ -11,6 +11,16 @@ class MomentumStrategyAgent(Agent):
     role = "Describe transparent trailing-price signals without predicting returns."
 
     def plan(self, context: Dict[str, Any]) -> AgentFinding:
+        if context.get("workflow") == "investment_purchase":
+            return AgentFinding(
+                agent=self.name,
+                role=self.role,
+                summary=(
+                    f"Describe {context['ticker']}'s historical momentum and downside behavior, "
+                    "and request recent research without forecasting its return."
+                ),
+                requested_operations=["market_snapshot", "research_news"],
+            )
         return AgentFinding(
             agent=self.name,
             role=self.role,

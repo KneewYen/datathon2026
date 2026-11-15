@@ -75,6 +75,21 @@ def test_analysis_maps_live_aws_failure_to_bad_gateway(monkeypatch) -> None:
     assert response.json()["detail"] == "financial Lambda failed: unavailable"
 
 
+def test_investment_analysis_returns_typed_clarification_without_calling_aws() -> None:
+    response = TestClient(app).post(
+        "/api/investment-analysis",
+        json={"question": "Which of my accounts should I use?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "clarification_required"
+    assert payload["clarification"] == "Which security or ticker would you like to analyze?"
+    assert payload["intent"] is None
+    assert payload["research"]["provider"] == "not-invoked"
+    assert payload["trace"][0]["status"] == "blocked"
+
+
 def test_meta_reports_configuration_without_calling_aws(monkeypatch) -> None:
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     monkeypatch.setenv("LAMBDA_FUNCTION_NAME", "portfolioguard-workshop-financial-tools")

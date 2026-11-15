@@ -9,7 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda" / "financial_tools"))
 
-from calculations import apply_shift, compare_strategy_shift  # noqa: E402
+from calculations import (  # noqa: E402
+    analyze_holdings_exposure,
+    apply_shift,
+    compare_strategy_shift,
+    market_snapshot,
+    simulate_account_purchase,
+)
 from data_access import _verify_manifest, dataset_from_csv_text  # noqa: E402
 
 
@@ -136,6 +142,83 @@ class CalculationTests(unittest.TestCase):
                 "alphaforge-starter-v1",
                 "starter/v1",
             )
+
+    def test_investment_tools_measure_exposure_market_and_purchase_risk(self) -> None:
+        event = {
+            "analysis_id": "investment-test",
+            "target_ticker": "NVDA",
+            "amount": 2000,
+            "currency": "CAD",
+            "account_id": "tfsa-test",
+            "start_date": "2023-11-13",
+            "end_date": "2026-11-12",
+            "accounts": [
+                {
+                    "id": "tfsa-test",
+                    "name": "Fictional TFSA",
+                    "type": "TFSA",
+                    "risk_tolerance": "aggressive",
+                    "objective": "Long-term growth",
+                    "cash_cad": 5000,
+                    "holdings": [
+                        {"ticker": "NVDA", "quantity": 2},
+                        {"ticker": "QQQ", "quantity": 4},
+                    ],
+                    "risk_constraints": {
+                        "max_single_company_exposure": 0.5,
+                        "minimum_cash_cad": 500,
+                    },
+                }
+            ],
+            "etf_constituents": {
+                "fixture_version": "test-etf-v1",
+                "retrieved_at": "2026-11-12T00:00:00Z",
+                "holdings": [
+                    {
+                        "etf_ticker": "QQQ",
+                        "constituent_ticker": "NVDA",
+                        "weight": 0.08,
+                        "as_of": "2026-11-12",
+                        "url": "https://example.test/issuer",
+                    }
+                ],
+            },
+        }
+
+        exposure = analyze_holdings_exposure(event, self.dataset)
+        market = market_snapshot(event, self.dataset)
+        simulation = simulate_account_purchase(event, self.dataset)
+
+        self.assertGreater(exposure["portfolio"]["direct_value_cad"], 0)
+        self.assertGreater(exposure["portfolio"]["indirect_value_cad"], 0)
+        self.assertEqual(market["metrics"]["price_as_of"], "2026-11-12")
+        self.assertGreater(simulation["option"]["shares_purchasable"], 0)
+        self.assertEqual(simulation["option"]["remaining_cash_cad"], 3000)
+        self.assertGreater(
+            simulation["option"]["proposed_nvda_exposure"],
+            simulation["option"]["current_nvda_exposure"],
+        )
+        self.assertGreater(
+            simulation["option"]["proposed_target_risk_contribution"],
+            simulation["option"]["current_target_risk_contribution"],
+        )
+        self.assertGreaterEqual(simulation["option"]["proposed_target_correlation"], -1)
+        self.assertLessEqual(simulation["option"]["proposed_target_correlation"], 1)
+
+    def test_market_snapshot_converts_usd_close_and_rejects_missing_ticker(self) -> None:
+        event = {
+            "analysis_id": "market-test",
+            "target_ticker": "NVDA",
+            "start_date": "2023-11-13",
+            "end_date": "2026-11-12",
+        }
+        result = market_snapshot(event, self.dataset)
+        latest = self.dataset.prices["NVDA"][-1]
+        expected = latest.close_price * self.dataset.prior_usdcad(latest.observation_date)
+        self.assertAlmostEqual(result["metrics"]["price_cad"], expected, places=8)
+
+        with self.assertRaisesRegex(ValueError, "no market price"):
+            market_snapshot({**event, "target_ticker": "MISSING"}, self.dataset)
 
 
 if __name__ == "__main__":

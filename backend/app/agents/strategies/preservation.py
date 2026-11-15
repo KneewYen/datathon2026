@@ -11,6 +11,16 @@ class CapitalPreservationStrategyAgent(Agent):
     role = "Assess loss sensitivity and stabilizing assets for the stated horizon."
 
     def plan(self, context: Dict[str, Any]) -> AgentFinding:
+        if context.get("workflow") == "investment_purchase":
+            return AgentFinding(
+                agent=self.name,
+                role=self.role,
+                summary=(
+                    f"Simulate {context['ticker']} in the conservative account and enforce "
+                    "cash, concentration, volatility, and drawdown constraints."
+                ),
+                requested_operations=["simulate_account_purchase"],
+            )
         return AgentFinding(
             agent=self.name,
             role=self.role,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -140,4 +140,111 @@ class AnalysisResponse(BaseModel):
     model_id: str
     disclaimer: str = (
         "Simulation only. Fictional portfolios. Not financial advice. No real trades."
+    )
+
+
+class InvestmentAnalysisRequest(BaseModel):
+    question: str = (
+        "I'm thinking of buying $5,000 CAD of NVIDIA. How would that affect my risk "
+        "across my TFSA and RRSP?"
+    )
+    investor_id: str = "investor-demo-001"
+    start_date: date = date(2023, 11, 13)
+    end_date: date = date(2026, 11, 12)
+
+
+class InvestmentIntent(BaseModel):
+    operation: Literal["buy"] = "buy"
+    ticker: str
+    amount: float = Field(gt=0)
+    currency: Literal["CAD", "USD"]
+    account_ids: List[str] = Field(default_factory=list)
+    compare_accounts: bool = False
+
+
+class EvidenceRecord(BaseModel):
+    evidence_id: str
+    category: Literal["calculation", "market", "holdings", "research", "governance"]
+    label: str
+    value: float | str
+    unit: str
+    source: str
+    as_of: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutionEvent(BaseModel):
+    event_id: str
+    parent_id: str | None = None
+    request_id: str
+    kind: Literal["orchestrator", "agent", "tool", "governance", "explainability"]
+    agent: str
+    tool_name: str | None = None
+    started_at: datetime
+    ended_at: datetime
+    status: Literal["completed", "blocked", "failed"]
+    evidence_ids: List[str] = Field(default_factory=list)
+    input_summary: str
+    output_summary: str
+    error: str | None = None
+
+
+class AccountOption(BaseModel):
+    account_id: str
+    account_type: AccountType
+    account_name: str
+    objective: str
+    risk_tolerance: str
+    compatibility: Literal["compatible", "caution", "conflict", "blocked"]
+    shares_purchasable: float
+    purchase_price_cad: float
+    remaining_cash_cad: float
+    current_nvda_exposure: float
+    proposed_nvda_exposure: float
+    portfolio_current_nvda_exposure: float
+    portfolio_proposed_nvda_exposure: float
+    current_volatility: float
+    proposed_volatility: float
+    current_max_drawdown: float
+    proposed_max_drawdown: float
+    current_concentration: float
+    proposed_concentration: float
+    current_target_correlation: float
+    proposed_target_correlation: float
+    current_target_risk_contribution: float
+    proposed_target_risk_contribution: float
+    evidence_ids: List[str] = Field(default_factory=list)
+    strategy_findings: List[AgentFinding] = Field(default_factory=list)
+
+
+class ResearchResult(BaseModel):
+    status: Literal["available", "unavailable", "failed"]
+    provider: str
+    retrieved_at: datetime
+    items: List[Dict[str, Any]] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
+
+
+class InvestmentAnalysisResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    request_id: str
+    status: Literal["completed", "clarification_required"]
+    question: str
+    clarification: str | None = None
+    intent: InvestmentIntent | None = None
+    investor: Dict[str, Any]
+    accounts: List[Dict[str, Any]]
+    current_exposure: Dict[str, Any] = Field(default_factory=dict)
+    account_options: List[AccountOption] = Field(default_factory=list)
+    governance: List[GovernanceFinding] = Field(default_factory=list)
+    research: ResearchResult
+    evidence: List[EvidenceRecord] = Field(default_factory=list)
+    trace: List[ExecutionEvent] = Field(default_factory=list)
+    answer: str
+    assumptions: List[str] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
+    model_id: str
+    disclaimer: str = (
+        "Simulation only. Fictional accounts. Not financial advice. No trade is executed."
     )

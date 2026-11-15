@@ -6,7 +6,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.agents.orchestrator import GlobalOrchestrator
-from app.domain.models import AnalysisRequest, AnalysisResponse
+from app.domain.models import (
+    AnalysisRequest,
+    AnalysisResponse,
+    InvestmentAnalysisRequest,
+    InvestmentAnalysisResponse,
+)
 from app.services.errors import ExternalServiceError, ServiceConfigurationError
 
 
@@ -36,6 +41,20 @@ def _run(request: AnalysisRequest) -> AnalysisResponse:
 @router.post("/analysis", response_model=AnalysisResponse)
 def analysis(request: AnalysisRequest) -> AnalysisResponse:
     return _run(request)
+
+
+@router.post("/investment-analysis", response_model=InvestmentAnalysisResponse)
+def investment_analysis(request: InvestmentAnalysisRequest) -> InvestmentAnalysisResponse:
+    try:
+        return orchestrator.analyze_investment(request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ServiceConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/chat")
