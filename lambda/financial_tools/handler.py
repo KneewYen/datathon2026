@@ -30,6 +30,31 @@ except ImportError:  # Lambda CodeUri places modules at the runtime root.
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+ROUTED_OPERATION_ALLOWLIST = {
+    "growth_strategy_agent": {
+        "analyze_holdings_exposure",
+        "simulate_account_purchase",
+    },
+    "momentum_strategy_agent": {"market_snapshot"},
+    "dividend_strategy_agent": {"analyze_holdings_exposure"},
+    "capital_preservation_strategy_agent": {"simulate_account_purchase"},
+}
+
+
+def _validate_routing_authorization(event: dict, operation: str | None) -> None:
+    authorization = event.get("routing_authorization")
+    if authorization is None:
+        return
+    if not isinstance(authorization, dict):
+        raise ValueError("routing_authorization must be an object")
+    agent = authorization.get("agent")
+    if (
+        authorization.get("operation") != operation
+        or operation not in ROUTED_OPERATION_ALLOWLIST.get(agent, set())
+        or agent != event.get("agent")
+    ):
+        raise ValueError("operation is not authorized for the routed strategy agent")
+
 
 def handler(event, context):
     operation = event.get("operation")
@@ -47,6 +72,7 @@ def handler(event, context):
         )
     )
     try:
+        _validate_routing_authorization(event, operation)
         financial_operations = {
             "compare_strategy_shift": compare_strategy_shift,
             "analyze_holdings_exposure": analyze_holdings_exposure,

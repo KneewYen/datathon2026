@@ -202,6 +202,22 @@ class ExecutionEvent(BaseModel):
     error: str | None = None
 
 
+class DelegationRecord(BaseModel):
+    delegation_id: str
+    request_id: str
+    decision_maker: str
+    target_kind: Literal["account", "agent", "tool"]
+    target: str
+    selected: bool
+    decision_source: Literal["model", "mandatory_policy"]
+    rationale: str
+    parent_event_id: str
+    actual_invocation_status: Literal[
+        "selected", "completed", "blocked", "failed", "not_invoked"
+    ]
+    evidence_ids: List[str] = Field(default_factory=list)
+
+
 class AccountOption(BaseModel):
     account_id: str
     account_type: AccountType
@@ -242,7 +258,7 @@ class InvestmentAnalysisResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     request_id: str
-    status: Literal["completed", "clarification_required"]
+    status: Literal["completed", "partial", "clarification_required"]
     question: str
     clarification: str | None = None
     intent: InvestmentIntent | None = None
@@ -254,6 +270,7 @@ class InvestmentAnalysisResponse(BaseModel):
     research: ResearchResult
     evidence: List[EvidenceRecord] = Field(default_factory=list)
     trace: List[ExecutionEvent] = Field(default_factory=list)
+    delegations: List[DelegationRecord] = Field(default_factory=list)
     answer: str
     assumptions: List[str] = Field(default_factory=list)
     limitations: List[str] = Field(default_factory=list)

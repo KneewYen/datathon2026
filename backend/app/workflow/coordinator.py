@@ -16,6 +16,7 @@ from app.domain.models import (
     ResearchResult,
 )
 from app.investors import etf_constituent_fixture, get_investor
+from app.workflow.routing import ACCOUNT_AGENT_BY_TYPE
 
 
 def prepare(event: dict) -> dict:
@@ -102,12 +103,12 @@ def research_unavailable(event: dict) -> dict:
         ],
     )
     execution_event = ExecutionEvent(
-        event_id="tool.news_research",
-        parent_id="agent.momentum_strategy_agent",
+        event_id=f"tool.research_news.{event.get('account_id', 'shared')}",
+        parent_id=event.get("parent_event_id", "agent.momentum_strategy_agent"),
         request_id=event["request_id"],
         kind="tool",
-        agent="momentum_strategy_agent",
-        tool_name="news_research",
+        agent=event.get("agent", "momentum_strategy_agent"),
+        tool_name="research_news",
         started_at=started_at,
         ended_at=datetime.now(timezone.utc),
         status="blocked",
@@ -115,6 +116,8 @@ def research_unavailable(event: dict) -> dict:
         output_summary="No approved live research provider is configured.",
     )
     return {
+        "status": "ok",
+        "operation": "research_news",
         "research": result.model_dump(mode="json"),
         "execution_event": execution_event.model_dump(mode="json"),
     }
@@ -197,23 +200,21 @@ def aggregate(event: dict) -> dict:
             evidence_payloads.append(item)
     evidence_by_id = {item["evidence_id"]: item for item in evidence_payloads}
     evidence = [EvidenceRecord.model_validate(item) for item in evidence_by_id.values()]
-    account_agents = {
-        agent["finding"]["agent"]: agent["finding"]
-        for branch in branches
-        for agent in branch.get("agents", {}).values()
-        if isinstance(agent, dict) and isinstance(agent.get("finding"), dict)
-    }
-    strategy_map = {
-        "TFSA": ["growth_strategy_agent", "momentum_strategy_agent"],
-        "RRSP": ["dividend_strategy_agent", "capital_preservation_strategy_agent"],
-    }
     options = []
     for result in simulation_results:
         payload = dict(result["option"])
+        branch = next(
+            item
+            for item in branches
+            if item.get("branch_status", {}).get("account_type")
+            == payload["account_type"]
+        )
         payload["strategy_findings"] = [
-            account_agents[name]
-            for name in strategy_map[payload["account_type"]]
-            if name in account_agents
+            agent["finding"]
+            for name, agent in branch.get("agents", {}).items()
+            if name != f"{payload['account_type'].lower()}_account_agent"
+            and isinstance(agent, dict)
+            and isinstance(agent.get("finding"), dict)
         ]
         options.append(AccountOption.model_validate(payload))
     governance_started = datetime.now(timezone.utc)
@@ -266,22 +267,53 @@ def aggregate(event: dict) -> dict:
     if global_event:
         trace.append(global_event)
     for branch in branches:
-        for key in (
-            "tfsa",
-            "growth",
-            "momentum",
-            "rrsp",
-            "dividend",
-            "preservation",
-        ):
-            candidate = _event(branch.get("agents", {}).get(key))
+        for agent in branch.get("agents", {}).values():
+            candidate = _event(agent)
             if candidate:
                 trace.append(candidate)
         for value in branch.get("tools", {}).values():
             candidate = _event(value)
             if candidate:
                 trace.append(candidate)
+        synthesis_event = branch.get("synthesis_event")
+        if isinstance(synthesis_event, dict):
+            trace.append(synthesis_event)
     trace.append(governance_event.model_dump(mode="json"))
+    branch_by_agent = {
+        ACCOUNT_AGENT_BY_TYPE[branch["branch_status"]["account_type"]]: branch
+        for branch in branches
+    }
+    delegations = []
+    for record in event.get("delegations", []):
+        updated = dict(record)
+        if updated.get("selected"):
+            branch = branch_by_agent.get(updated["target"])
+            if branch is None:
+                updated["actual_invocation_status"] = "failed"
+            else:
+                branch_status = branch["branch_status"].get("status")
+                updated["actual_invocation_status"] = (
+                    "completed"
+                    if branch_status in {"completed", "partial"}
+                    else "failed"
+                )
+                updated["evidence_ids"] = branch.get("synthesis_event", {}).get(
+                    "evidence_ids", []
+                )
+        delegations.append(updated)
+    delegations.extend(
+        record for branch in branches for record in branch.get("delegations", [])
+    )
+    incomplete = [
+        branch
+        for branch in branches
+        if branch.get("branch_status", {}).get("status") != "completed"
+    ]
+    if incomplete:
+        limitations.append(
+            "One or more selected account routes did not return all mandatory evidence; "
+            "the response includes only completed deterministic results."
+        )
     return {
         "request_id": context["request_id"],
         "question": context["question"],
@@ -294,8 +326,10 @@ def aggregate(event: dict) -> dict:
         "research": research_payload,
         "evidence": [item.model_dump(mode="json") for item in evidence],
         "trace": trace,
+        "delegations": delegations,
         "assumptions": assumptions,
         "limitations": limitations,
+        "result_status": "partial" if incomplete else "completed",
     }
 
 
@@ -306,10 +340,10 @@ def finalize(event: dict) -> dict:
     response_fields = {
         key: value
         for key, value in aggregation.items()
-        if key not in {"trace", "limitations"}
+        if key not in {"trace", "limitations", "result_status"}
     }
     response = InvestmentAnalysisResponse(
-        status="completed",
+        status=aggregation.get("result_status", "completed"),
         **response_fields,
         trace=trace,
         answer=explanation["answer"],

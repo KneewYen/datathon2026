@@ -70,6 +70,16 @@ AGENTS = {
     ),
 }
 
+ROUTING_STAGE_ROLES = {
+    "account": {"tfsa_account_agent", "rrsp_account_agent"},
+    "strategy": {
+        "growth_strategy_agent",
+        "momentum_strategy_agent",
+        "dividend_strategy_agent",
+        "capital_preservation_strategy_agent",
+    },
+}
+
 
 SYSTEM_PROMPT = """You are one named component in PortfolioGuard AI.
 Return JSON only. Never calculate, estimate, or repeat financial numbers. Never claim that a
@@ -184,6 +194,34 @@ def invoke_named_agent(
         "model_id": model_id,
         "event": event.model_dump(mode="json"),
     }
+
+
+def invoke_routed_agent(
+    role: str,
+    context: dict,
+    *,
+    routing_stage: str,
+    expected_role: str,
+    request_id: str,
+    parent_id: str,
+    parent_account_role: str | None = None,
+    bedrock_client: Any | None = None,
+) -> dict:
+    """Invoke only a role already selected by a validated workflow route."""
+    allowed = ROUTING_STAGE_ROLES.get(routing_stage)
+    if allowed is None or role != expected_role or role not in allowed:
+        raise ValueError("agent route does not match the authorized routing stage")
+    if routing_stage == "strategy":
+        parent = AGENTS.get(parent_account_role or "")
+        if parent is None or role not in parent.allowed_agents:
+            raise ValueError("specialized agent is not permitted by its account orchestrator")
+    return invoke_named_agent(
+        role,
+        context,
+        request_id=request_id,
+        parent_id=parent_id,
+        bedrock_client=bedrock_client,
+    )
 
 
 def invoke_explainability_agent(

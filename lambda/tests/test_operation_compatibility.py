@@ -223,6 +223,46 @@ class OperationCompatibilityTests(unittest.TestCase):
         self.assertEqual(investment["execution_event"]["parent_id"], "agent.momentum_strategy_agent")
         self.assertEqual(investment["execution_event"]["request_id"], "analysis-test")
 
+    def test_routed_tool_authorization_is_enforced_at_financial_lambda_runtime(self) -> None:
+        context = SimpleNamespace(aws_request_id="request-test")
+        with (
+            patch.object(lambda_handler, "load_dataset_from_s3", return_value=object()),
+            patch.object(
+                lambda_handler,
+                "market_snapshot",
+                return_value={"status": "ok", "operation": "market_snapshot", "evidence": []},
+            ) as calculation,
+        ):
+            allowed = lambda_handler.handler(
+                {
+                    "operation": "market_snapshot",
+                    "agent": "momentum_strategy_agent",
+                    "routing_authorization": {
+                        "agent": "momentum_strategy_agent",
+                        "operation": "market_snapshot",
+                        "delegation_id": "delegation.tfsa.momentum.market",
+                    },
+                },
+                context,
+            )
+            denied = lambda_handler.handler(
+                {
+                    "operation": "market_snapshot",
+                    "agent": "growth_strategy_agent",
+                    "routing_authorization": {
+                        "agent": "growth_strategy_agent",
+                        "operation": "market_snapshot",
+                        "delegation_id": "delegation.tfsa.growth.market",
+                    },
+                },
+                context,
+            )
+
+        self.assertEqual(allowed["status"], "ok")
+        self.assertEqual(denied["status"], "error")
+        self.assertIn("not authorized", denied["error"])
+        self.assertEqual(calculation.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

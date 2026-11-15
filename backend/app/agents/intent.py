@@ -37,8 +37,7 @@ def parse_investment_intent(
         if account["type"].upper() in text or account["id"].upper() in text
     ]
     compare_accounts = (
-        not mentioned
-        or len(mentioned) > 1
+        len(mentioned) > 1
         or "WHICH ACCOUNT" in text
         or "ACROSS" in text
     )
