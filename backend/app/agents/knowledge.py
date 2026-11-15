@@ -10,7 +10,7 @@ def match(message: str) -> Optional[Dict[str, Any]]:
     text = message.lower()
     best, score = None, 0
     for entry in FAQ:
-        hits = sum(1 for k in entry["keywords"] if k in text)
+        hits = sum(len(k) for k in entry["keywords"] if k in text)
         if hits > score:
             best, score = entry, hits
     return best
