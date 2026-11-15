@@ -20,20 +20,32 @@ provenance, governance findings, and an observable agent trace.
 Browser
   └─ Next.js dashboard
        └─ POST /api/investment-analysis
-            └─ FastAPI
-                 └─ Global Orchestrator
-                      ├─ TFSA Account Agent → Growth + Momentum
-                      ├─ RRSP Account Agent → Dividend + Capital Preservation
-                      ├─ AWS Lambda financial tools
+            └─ API Gateway HTTP API → FastAPI Lambda
+                 └─ AWS Step Functions Standard
+                      ├─ Global Orchestrator → Nova Lite
+                      ├─ TFSA Account Agent → Growth + Momentum → Nova Lite
+                      ├─ RRSP Account Agent → Dividend + Preservation → Nova Lite
+                      ├─ deterministic Financial Tools Lambda
                       │    └─ versioned Amazon S3 dataset
-                      ├─ optional approved research provider
-                      ├─ deterministic Governance Agent
-                      └─ Explainability Agent
-                           └─ Amazon Bedrock Converse API
+                      ├─ deterministic coordinator + governance Lambda
+                      └─ Explainability Agent → Nova Lite
 
 CloudWatch Logs receives structured Lambda lifecycle events with analysis and AWS
-request identifiers. The API response exposes the same execution lineage to the UI.
+request identifiers. Step Functions retains the actual state-transition history;
+the API polls it and exposes the same execution lineage to the UI.
 ```
+
+The hierarchy is implemented as executable AWS states, not decorative labels. The
+two account branches run in parallel, each account state invokes only its assigned
+strategy states, and strategy states lead to explicitly named deterministic tool
+states. The API returns a start response immediately and the dashboard polls the
+Standard workflow until it returns a schema-validated final result.
+
+PortfolioGuard uses direct Bedrock Runtime `Converse` calls with the system-defined
+`us.amazon.nova-lite-v1:0` inference profile. It does not depend on Bedrock Agents
+Classic. Every named agent has an allow-list of possible delegates and operations;
+unsupported selections, numeric language-model claims, malformed JSON, or unknown
+evidence IDs fail closed.
 
 Production code calls real AWS SDK clients. Missing AWS configuration or failed
 cloud calls return a clear service error. The dashboard does not replace a failed
@@ -205,22 +217,30 @@ conservative lag policy are implemented.
 
 ## 7. AWS implementation
 
-The deployed SAM stack defines:
+The currently deployed stack contains:
 
 - private, encrypted, versioned S3 storage with blocked public access;
 - ARM64 Python Lambda with bounded timeout, memory, and reserved concurrency;
 - Lambda read-only access to the dataset bucket;
 - a 14-day CloudWatch Logs group;
 - one unnamed least-privilege Lambda execution role with S3 reads limited to the
-  dataset prefix and CloudWatch writes limited to the function log group;
-- review-only IAM policy documents for exact backend Bedrock/Lambda access.
+  dataset prefix and CloudWatch writes limited to the function log group.
+
+The locally validated, not-yet-deployed SAM update adds:
+
+- a Standard Step Functions state machine with parallel account branches;
+- constrained Bedrock agent, deterministic coordinator, and FastAPI Lambda functions;
+- API Gateway HTTP API for the dashboard start/status contract;
+- four additional unnamed least-privilege roles for the API, Step Functions,
+  coordinator, and Bedrock agent runtime;
+- three additional fourteen-day Lambda log groups.
 
 The workshop configuration is fixed to `us-east-1` and the system-defined
 `us.amazon.nova-lite-v1:0` profile. IAM must allow its profile ARN plus Nova Lite in
 `us-east-1`, `us-east-2`, and `us-west-2`; organization controls must also permit
 all three destinations. Read-only role inventory found no suitable existing
 application execution role. IAM simulation confirms that the participant role can
-create, configure, pass, and delete the unnamed role in the stack, so deployment
+create, configure, pass, and delete the unnamed roles in the template, so deployment
 uses `CAPABILITY_IAM` and remains gated by change-set review and explicit approval.
 
 The initial change set was reviewed and separately approved before execution. The
@@ -229,7 +249,8 @@ and independently verified against S3-reported SHA-256 checksums and version IDs
 The Lambda has no event source, resource policy, function URL, or async destination.
 One separately approved live invocation read the expected S3 object versions and
 matched every local metric and all 93 performance points exactly. Bedrock testing
-remains separately approval-gated.
+remains separately approval-gated. Read-only inspection on 2026-11-15 confirmed
+that the account currently has no PortfolioGuard state machine or HTTP API.
 
 ## 8. Security and failure behavior
 
@@ -256,6 +277,8 @@ Local CI covers:
 - Bedrock evidence and numeric-claim rejection;
 - allocation invariants, duplicate-date safeguards, and golden financial results;
 - frontend lint and production build.
+- AWS workflow-definition, named-agent capability, status-history, and local
+  state-machine-equivalent tests.
 
 The AWS acceptance test is opt-in and cannot pass through mocks. It must observe a
 real Lambda request ID, versioned S3 sources, the configured Bedrock model ID, and a

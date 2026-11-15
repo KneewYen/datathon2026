@@ -24,16 +24,17 @@ dashboard as a secondary regression demo.
 ## Architecture
 
 ```text
-Next.js dashboard → FastAPI → Global Orchestrator
-                                ├─ TFSA + RRSP Account Agents
-                                │    └─ Growth / Dividend / Momentum /
-                                │       Capital Preservation Strategy Agents
-                                │          ├─ AWS Lambda → versioned Amazon S3 data
-                                │          └─ approved research provider interface
-                                ├─ deterministic Governance Agent
-                                └─ Explainability Agent → Amazon Bedrock Converse API
+Next.js dashboard → FastAPI on Lambda → AWS Step Functions Standard
+                                         ├─ Global Orchestrator (Nova Lite)
+                                         ├─ TFSA + RRSP Account Agents (parallel)
+                                         │    └─ Growth / Dividend / Momentum /
+                                         │       Capital Preservation Agents (Nova Lite)
+                                         ├─ deterministic Lambda tools → versioned S3
+                                         ├─ deterministic governance
+                                         └─ Explainability Agent → Nova Lite
 
-AWS Lambda + FastAPI expose correlated execution details to CloudWatch and the UI.
+Step Functions execution history and CloudWatch Lambda logs expose correlated
+execution details to the API and the live dashboard.
 ```
 
 The execution trace makes delegation observable. Strategy and language-model
@@ -43,16 +44,17 @@ agents cannot create financial values; only the deterministic Lambda does so.
 
 - The cross-account NVIDIA vertical slice, real agent hierarchy, deterministic
   engine, dashboard, IaC, manifest generation, CI, and local tests are implemented.
-- AWS SAM defines a private encrypted/versioned bucket, bounded calculation
-  Lambda, CloudWatch log group, and one unnamed least-privilege Lambda execution
-  role for the restricted workshop.
+- AWS SAM now defines the complete AWS-hosted path: HTTP API, FastAPI Lambda,
+  Standard Step Functions workflow, constrained Bedrock agent Lambda,
+  deterministic coordinator and financial-tool Lambdas, versioned S3, scoped IAM,
+  and fourteen-day CloudWatch log groups.
 - The reviewed AWS stack is deployed in `us-east-1`: private versioned S3 storage,
   deterministic Lambda, least-privilege execution role, and CloudWatch log group.
   The six-file dataset and manifest are uploaded with verified SHA-256 checksums;
   one bounded Lambda acceptance run matched the local engine exactly, while
-  Bedrock has not yet been invoked. The deployed Lambda still contains the earlier
-  strategy-shift operation; deploying the new investment operations requires a
-  separately reviewed and approved CloudFormation change.
+  Bedrock has not yet been invoked. The newly defined orchestration resources and
+  investment operations are locally built and validated but are not deployed;
+  they require a separately reviewed and approved CloudFormation change set.
 - Advanced VaR/CVaR, broader momentum analytics, and monitoring dashboards remain
   intentionally deferred until the primary scenario is proven end to end.
 
@@ -110,6 +112,8 @@ Backend configuration is documented in `backend/.env.example`:
 | `S3_BUCKET` | CloudFormation `DataBucketName` output | Versioned dataset bucket used by deployment helpers |
 | `DATA_PREFIX` | `starter/v1` | Approved dataset prefix reported by the readiness endpoint |
 | `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call FastAPI |
+| `ORCHESTRATION_MODE` | `local` locally; `step-functions` in AWS | Selects in-process development or AWS-owned execution |
+| `INVESTMENT_STATE_MACHINE_ARN` | CloudFormation `InvestmentStateMachineArn` output | Standard workflow started and polled by FastAPI |
 
 The frontend uses one API base URL, `NEXT_PUBLIC_API_URL`, defaulting to
 `http://localhost:8000` in `frontend/.env.example`. The app workspace uses that
@@ -123,7 +127,7 @@ named profile using Workshop Studio's secure temporary-credential workflow.
 ```bash
 cd backend && .venv/bin/pytest -m "not integration" -q
 python3 -m unittest discover -s lambda/tests -v
-cd frontend && npm run lint && npm run build
+cd frontend && npm test && npm run lint && npm run build -- --webpack
 cd .. && SAM_CLI_TELEMETRY=0 sam validate --lint --template-file infra/template.yaml
 ```
 

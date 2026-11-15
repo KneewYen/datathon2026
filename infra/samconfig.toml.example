@@ -11,5 +11,5 @@ profile = "portfolioguard-workshop"
 confirm_changeset = true
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Environment=workshop DataPrefix=starter/v1 DatasetId=alphaforge-starter-v1 BedrockModelId=us.amazon.nova-lite-v1:0"
+parameter_overrides = "Environment=workshop DataPrefix=starter/v1 DatasetId=alphaforge-starter-v1 BedrockModelId=us.amazon.nova-lite-v1:0 FrontendOrigin=http://localhost:3000"
 tags = "Project=PortfolioGuardAI Environment=workshop ManagedBy=AWS-SAM Workshop=Polyfinances2026"

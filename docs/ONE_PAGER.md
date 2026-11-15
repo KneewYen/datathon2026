@@ -57,6 +57,8 @@ instead of forcing one recommendation.
 
 - **Amazon S3:** encrypted, private, versioned source data.
 - **AWS Lambda:** deterministic financial calculations.
+- **AWS Step Functions:** durable hierarchy, parallel account analysis, and an
+  execution history shown live in the dashboard.
 - **Amazon Bedrock:** grounded explanation through the Converse API.
 - **IAM:** least-privilege access to the function and selected model resources.
 - **CloudWatch:** correlated structured execution logs.
@@ -70,8 +72,9 @@ an honest unavailable state instead of placeholder results.
 
 ## Status and next step
 
-The cross-account slice, tests, API, and dashboard are implemented locally. Core
-AWS infrastructure and the earlier strategy-shift Lambda were previously verified,
-but the new Lambda operations are not deployed. The next separately gated step is
-reviewing and deploying that package, followed by one bounded flagship invocation
-and one Nova Lite explanation test. Bedrock has not yet been invoked.
+The cross-account slice, AWS state machine, named Nova agents, API polling, tests,
+and dashboard are implemented and locally validated. Core AWS infrastructure and
+the earlier strategy-shift Lambda were previously verified, but the workflow update
+is not deployed. The next separately gated step is creating and reviewing a
+no-execute CloudFormation change set. Execution and the first bounded live workflow
+remain separate approvals. Bedrock has not yet been invoked.

@@ -1,6 +1,6 @@
 # PortfolioGuard AI implementation plan
 
-**Status:** Cross-account investment slice implemented locally; AWS redeployment and Bedrock verification require separate approval
+**Status:** AWS-owned orchestration implemented and validated locally; change-set creation, deployment, and live Bedrock verification require separate approval
 **Audit date:** 2026-11-15
 **Repository baseline:** `origin/nicolas-implementation` at `ac50d84`
 **Implementation branch:** `feature/multi-agent-investment-intelligence`
@@ -21,7 +21,7 @@ before an end-to-end AWS proof.
 | Dashboard | Implemented and build-verified | Landing page hands off to the app-like `/dashboard`; flagship question input, account cards, evidence, research status, governance, and real execution tree are primary |
 | Conversational demo workspace | Implemented locally | Approval-gated fictional account creation, profile route, FAQ and historical macro flow, local CORS coverage, and visible session-only/simulation boundaries |
 | AWS infrastructure | Deployed and verified live | `portfolioguard-workshop` is `CREATE_COMPLETE`; versioned S3 integrity passed; one bounded Lambda run read S3 and matched all local metrics and 93 performance points exactly |
-| Real AWS acceptance | Earlier Lambda operation passed; new operations and Bedrock pending | `compare_strategy_shift` matched local results in the prior approved run. This branch made no AWS calls or changes; new Lambda code is not deployed yet |
+| Real AWS acceptance | Earlier Lambda operation passed; new orchestration and Bedrock pending | `compare_strategy_shift` matched local results in the prior approved run. This branch used read-only inventory/validation calls only; new Lambda code is not deployed yet |
 | Advanced analytics | Deferred | VaR/CVaR, deeper momentum analytics, and monitoring dashboards follow the working vertical slice |
 | Submission package | Drafted | README, technical documentation, one-pager, and timed demo script are present; final screenshots and live AWS identifiers follow deployment |
 
@@ -64,9 +64,32 @@ RRSP accounts without depending on the persona-only examples.
 - Added regression coverage for hierarchy, tool order, parent integrity, evidence,
   ETF overlap, clarification, and changed purchase amounts.
 
-Next approval gate: review and deploy the updated Lambda package, then perform one
-bounded flagship invocation and one bounded Nova Lite explanation test. Until that
-happens the dashboard must fail closed for live results.
+Next approval gate: create and inspect a no-execute CloudFormation change set for
+the complete AWS workflow. Execution, one bounded flagship workflow, and a Nova
+Lite verification each remain separate approvals. Until then the dashboard must
+fail closed for live results.
+
+## AWS orchestration milestone — 2026-11-15
+
+- Added an AWS Step Functions **Standard** workflow as the execution owner.
+- Added real Nova Lite calls for the global orchestrator, TFSA and RRSP account
+  agents, all four required strategy agents, and the explainability agent.
+- Kept all financial values behind deterministic Lambda operations reading the
+  existing manifest-validated S3 dataset; Bedrock output is qualitative and
+  schema/capability constrained.
+- Added parallel TFSA/RRSP branches, deterministic preparation/governance, explicit
+  unavailable-research handling, and actual Step Functions execution-history
+  polling in the dashboard.
+- Added a Lambda-hosted FastAPI adapter and HTTP API definition so the demo UI can
+  start and observe AWS workflows without browser AWS credentials.
+- Added least-privilege roles for the API, Step Functions, coordinator, and Bedrock
+  runtime; all role names remain CloudFormation-generated for workshop compatibility.
+- Confirmed read-only that the refreshed workshop identity can see the existing
+  four-resource stack and that no state machine or HTTP API currently exists.
+
+No new resource has been created and neither Lambda nor Bedrock has been invoked
+for this milestone. The next gate is a no-execute CloudFormation change set that
+must be reviewed and explicitly approved before execution.
 
 ## 2. Challenge requirements that drive the design
 
@@ -170,11 +193,12 @@ Known constraints that must be enforced or disclosed:
 ```mermaid
 flowchart TD
     UI[Next.js dashboard] --> API[FastAPI API]
-    API --> ORCH[Global orchestrator]
+    API --> SFN[AWS Step Functions Standard]
+    SFN --> ORCH[Global orchestrator on Nova Lite]
 
     ORCH --> PROFILE[Persona and request context]
-    ORCH --> TFSA[TFSA account agent]
-    ORCH --> RRSP[RRSP account agent]
+    ORCH --> TFSA[TFSA account agent on Nova Lite]
+    ORCH --> RRSP[RRSP account agent on Nova Lite]
 
     TFSA --> GROWTH[Growth strategy agent]
     TFSA --> DIVIDEND[Dividend strategy agent]
@@ -195,7 +219,7 @@ flowchart TD
 
     ORCH --> GOV[Governance policy engine]
     GOV --> EXPLAIN[Explainability and evidence builder]
-    EXPLAIN --> BEDROCK[Amazon Bedrock]
+    EXPLAIN --> BEDROCK[Amazon Bedrock Nova Lite]
     BEDROCK --> API
 
     API --> CW[CloudWatch logs and metrics]
@@ -273,10 +297,16 @@ The first functional vertical slice will use real AWS services:
 - **AWS Lambda:** packaged deterministic calculation service reading only the required S3 prefix. Use reserved safeguards and bounded memory/timeout settings.
 - **Amazon Bedrock:** one configurable text model through the Converse API for grounded synthesis. Model selection remains configuration, not code.
 - **IAM:** separate least-privilege execution roles for the calculation Lambda and local/backend caller. No long-lived keys in the repository or chat.
-- **Amazon CloudWatch:** structured logs, request correlation, custom metrics, alarms for Lambda errors/throttles and Bedrock validation failures, and a small operational dashboard.
+- **AWS Step Functions:** Standard workflow with durable execution history,
+  parallel account branches, explicit service failures, and observable delegation.
+- **Amazon CloudWatch:** structured Lambda logs and request correlation. Custom
+  alarms and an operational dashboard remain deferred until the vertical slice is proven.
 - **Infrastructure as code:** AWS SAM/CloudFormation template with parameterized names, tags, retention settings, and outputs. A deployment script will show the change set before applying it.
 
-The local FastAPI service will call the deployed Lambda and Bedrock endpoints during development. This proves real integration from the first working feature while keeping frontend iteration local. Hosting the application itself on AWS is a later, separately approved deployment decision.
+Local FastAPI remains available for development. The proposed workshop deployment
+also packages FastAPI with Mangum behind API Gateway HTTP API so the demo UI can
+start and poll Step Functions. This hosting expansion is part of the next
+separately reviewed change set and is not yet deployed.
 
 ## 8. Implementation phases and acceptance criteria
 
@@ -442,9 +472,9 @@ scripts/
 
 1. **AWS account and region:** use the organizer-provided Polyfinances 2026 Workshop Studio account in `us-east-1`; console access is confirmed and the session lasts 72 hours.
 2. **Bedrock model:** use the system-defined US Amazon Nova Lite profile `us.amazon.nova-lite-v1:0`. Invocation still requires confirmation that the workshop role and organization controls allow routing to `us-east-1`, `us-east-2`, and `us-west-2`.
-3. **Deployment approval:** the reviewed `portfolioguard-workshop` stack is deployed with the approved S3 bucket, Lambda, least-privilege execution role, and CloudWatch log group. The dataset upload and one bounded Lambda acceptance run were separately approved and completed. Bedrock has not been invoked and still requires explicit approval.
+3. **Deployment approval:** the reviewed `portfolioguard-workshop` stack is deployed with the approved S3 bucket, Lambda, least-privilege execution role, and CloudWatch log group. The dataset upload and one bounded Lambda acceptance run were separately approved and completed. The new Step Functions/API/agent update is not deployed. Bedrock has not been invoked and still requires explicit approval.
 4. **Credentials:** use Workshop Studio's temporary AWS CLI credentials through the standard AWS credential chain and a local named profile. Never request or store their values in source, logs, screenshots, or chat.
-5. **Workshop IAM:** read-only IAM simulation on 2026-11-14 confirmed role lifecycle, `iam:PassRole`, CloudFormation, S3, Lambda, Logs, and Bedrock actions for `WSParticipantRole`. No suitable existing application execution role exists, so the stack creates one unnamed least-privilege Lambda role under `CAPABILITY_IAM`. Simulations are strong preflight evidence, not a substitute for reviewing the change set or the separately approved live Bedrock invocation.
+5. **Workshop IAM:** read-only IAM simulation confirmed role lifecycle, `iam:PassRole`, CloudFormation, S3, Lambda, Step Functions, API Gateway, Logs, and Bedrock actions for `WSParticipantRole`. No suitable existing application execution role exists, so the update defines CloudFormation-generated least-privilege roles under `CAPABILITY_IAM`. Simulations are strong preflight evidence, not a substitute for reviewing the change set or the separately approved live Bedrock invocation.
 6. **Portfolio assumptions:** the challenge supplies personas but not holdings or contribution room. Demo holdings and account balances will be explicitly fictional and versioned in the repository.
 7. **Tax/account rules:** TFSA/RRSP logic will remain a transparent policy layer backed by authoritative Canadian sources and will not calculate personal eligibility, contribution room, or tax advice.
 8. **ESG:** Mateo's flow will disclose that controversy-level evaluation is unavailable until an approved public ESG evidence source is added.
