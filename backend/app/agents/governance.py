@@ -227,7 +227,7 @@ class GovernanceAgent:
                     GovernanceFinding(
                         rule_id=f"CONCENTRATION_LIMIT_{account['type']}",
                         severity="warning",
-                        message=f"Covered direct and indirect NVIDIA exposure would exceed the {account['type']} concentration limit.",
+                        message=f"Covered direct and indirect {intent['ticker']} exposure would exceed the {account['type']} concentration limit.",
                         evidence_ids=[item for item in evidence_ids if item.endswith(".nvda_exposure")],
                     )
                 )
@@ -236,7 +236,7 @@ class GovernanceAgent:
                     GovernanceFinding(
                         rule_id=f"RISK_TOLERANCE_CONFLICT_{account['type']}",
                         severity="warning",
-                        message=f"A single-company technology purchase requires caution under the {account['type']}'s conservative retirement objective.",
+                        message=f"A single-security purchase requires caution under the {account['type']}'s conservative retirement objective.",
                         evidence_ids=[
                             item
                             for item in evidence_ids

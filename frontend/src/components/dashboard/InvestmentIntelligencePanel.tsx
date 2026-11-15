@@ -69,7 +69,7 @@ function AccountCard({ option, targetTicker }: { option: AccountOption; targetTi
         <Metric label="Annualized volatility" value={change(option.current_volatility, option.proposed_volatility)} />
         <Metric label="Historical max drawdown" value={change(option.current_max_drawdown, option.proposed_max_drawdown)} />
         <Metric label="Concentration HHI" value={change(option.current_concentration, option.proposed_concentration, (value) => value.toFixed(3))} />
-        <Metric label="NVDA / portfolio correlation" value={change(option.current_target_correlation, option.proposed_target_correlation, (value) => value.toFixed(2))} />
+        <Metric label={`${targetTicker} / portfolio correlation`} value={change(option.current_target_correlation, option.proposed_target_correlation, (value) => value.toFixed(2))} />
         <Metric label="Direct risk contribution" value={change(option.current_target_risk_contribution, option.proposed_target_risk_contribution)} />
         <Metric label="Fractional shares" value={option.shares_purchasable.toFixed(3)} />
         <Metric label="Cash after simulation" value={money.format(option.remaining_cash_cad)} />

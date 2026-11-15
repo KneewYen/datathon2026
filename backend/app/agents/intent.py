@@ -7,17 +7,83 @@ from app.domain.models import InvestmentIntent
 
 
 TICKER_ALIASES = {
-    "NVIDIA": "NVDA",
+    "ROYAL BANK OF CANADA": "RY.TO",
+    "RBC": "RY.TO",
+    "RY.TO": "RY.TO",
+    "TORONTO-DOMINION BANK": "TD.TO",
+    "TD BANK": "TD.TO",
+    "TD.TO": "TD.TO",
+    "MANULIFE FINANCIAL": "MFC.TO",
+    "MANULIFE": "MFC.TO",
+    "MFC.TO": "MFC.TO",
+    "ENBRIDGE": "ENB.TO",
+    "ENB.TO": "ENB.TO",
+    "CANADIAN NATURAL RESOURCES": "CNQ.TO",
+    "CNQ.TO": "CNQ.TO",
+    "CANADIAN NATIONAL RAILWAY": "CNR.TO",
+    "CNR.TO": "CNR.TO",
+    "FORTIS": "FTS.TO",
+    "FTS.TO": "FTS.TO",
+    "ALIMENTATION COUCHE-TARD": "ATD.TO",
+    "COUCHE-TARD": "ATD.TO",
+    "ATD.TO": "ATD.TO",
+    "SHOPIFY": "SHOP.TO",
+    "SHOP.TO": "SHOP.TO",
+    "CONSTELLATION SOFTWARE": "CSU.TO",
+    "CSU.TO": "CSU.TO",
+    "APPLE": "AAPL",
+    "AAPL": "AAPL",
+    "MICROSOFT": "MSFT",
+    "MSFT": "MSFT",
     "NVIDIA CORP": "NVDA",
+    "NVIDIA": "NVDA",
     "NVDA": "NVDA",
+    "ALPHABET": "GOOGL",
+    "GOOGLE": "GOOGL",
+    "GOOGL": "GOOGL",
+    "AMAZON": "AMZN",
+    "AMZN": "AMZN",
+    "TESLA": "TSLA",
+    "TSLA": "TSLA",
+    "JPMORGAN CHASE": "JPM",
+    "JPMORGAN": "JPM",
+    "JPM": "JPM",
+    "JOHNSON & JOHNSON": "JNJ",
+    "JNJ": "JNJ",
+    "PROCTER & GAMBLE": "PG",
+    "PROCTER AND GAMBLE": "PG",
+    "PG": "PG",
+    "EXXON MOBIL": "XOM",
+    "XOM": "XOM",
+    "XIU.TO": "XIU.TO",
+    "SPY": "SPY",
+    "QQQ": "QQQ",
+    "ESGV": "ESGV",
+    "XBB.TO": "XBB.TO",
+    "ZST.TO": "ZST.TO",
+    "AGG": "AGG",
+    "TLT": "TLT",
+    "GLD": "GLD",
+    "BITCOIN": "BTC-USD",
+    "BTC-USD": "BTC-USD",
+    "ETHER": "ETH-USD",
+    "ETHEREUM": "ETH-USD",
+    "ETH-USD": "ETH-USD",
 }
+
+
+def _ticker_from_text(text: str) -> str | None:
+    for alias in sorted(TICKER_ALIASES, key=len, reverse=True):
+        if re.search(rf"(?<![A-Z0-9]){re.escape(alias)}(?![A-Z0-9])", text):
+            return TICKER_ALIASES[alias]
+    return None
 
 
 def parse_investment_intent(
     question: str, accounts: List[Dict]
 ) -> Tuple[InvestmentIntent | None, str | None]:
     text = question.upper().replace("C$", "$ ")
-    ticker = next((ticker for alias, ticker in TICKER_ALIASES.items() if alias in text), None)
+    ticker = _ticker_from_text(text)
     amount_match = re.search(
         r"(?:\$|CAD\s*)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(CAD|USD)?",
         text,

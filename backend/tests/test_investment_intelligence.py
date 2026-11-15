@@ -79,6 +79,36 @@ def test_intent_parser_extracts_flagship_purchase_and_requests_missing_currency(
     assert clarification == "Is the 5,000.00 purchase amount in CAD or USD?"
 
 
+def test_intent_parser_supports_other_validated_dataset_securities() -> None:
+    accounts = get_investor("investor-demo-001")["accounts"]
+
+    shopify, clarification = parse_investment_intent(
+        "Would buying $2,000 CAD of Shopify in my TFSA increase concentration risk?",
+        accounts,
+    )
+    assert clarification is None
+    assert shopify is not None
+    assert shopify.ticker == "SHOP.TO"
+    assert shopify.account_ids == ["tfsa-demo-001"]
+    assert shopify.compare_accounts is False
+
+    procter, clarification = parse_investment_intent(
+        "How would buying $3,000 CAD of Procter & Gamble in my RRSP affect retirement risk?",
+        accounts,
+    )
+    assert clarification is None
+    assert procter is not None
+    assert procter.ticker == "PG"
+    assert procter.account_ids == ["rrsp-demo-001"]
+    assert procter.compare_accounts is False
+
+    unsupported, clarification = parse_investment_intent(
+        "Would buying $1,000 CAD of an unsupported company help?", accounts
+    )
+    assert unsupported is None
+    assert clarification == "Which security or ticker would you like to analyze?"
+
+
 def test_flagship_workflow_delegates_real_hierarchy_and_preserves_conflict() -> None:
     tool = RecordingFinancialTool()
     response = GlobalOrchestrator(
