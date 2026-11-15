@@ -84,14 +84,15 @@ def market_agent(ticker: str, live: bool = False) -> Dict[str, Any]:
 
 
 def classifier_agent(
-    action: str, market: Dict[str, Any], risk_band: str | None = None, growth_style: bool = False
+    action: str, market: Dict[str, Any], risk_band: str | None = None, growth_style: bool = False,
+    holding_pct: float | None = None,
 ) -> Dict[str, Any]:
     """Classifier agent step (Lambda): label the move and score it, from the Market agent's output.
 
     ``risk_band`` (low, mid, high; persona plus account rules) sets how big a move must be to count.
     """
     sent = {k: v for k, v in market.items() if k not in ("computed_by", "data_sources")}
-    result = _call("classifier_agent", action=action, market=sent, risk_band=risk_band, growth_style=growth_style)
+    result = _call("classifier_agent", action=action, market=sent, risk_band=risk_band, growth_style=growth_style, holding_pct=holding_pct)
     return {
         "trade_check": {**result["trade_check"], "computed_by": result["computed_by"]},
         "headlines": result["headlines"],

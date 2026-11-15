@@ -14,6 +14,9 @@ PERSONAS = {
         "starting_balance_cad": 15000,
         "starting_cash_cad": 2000,
         "default_allocations": {"growth": 0.55, "momentum": 0.25, "dividend": 0.10, "preservation": 0.10},
+        # Amira is a risk-taker who holds only a few stocks, not a spread of baskets: NVDA is the
+        # big bet (about 40% of the whole portfolio). Overrides the basket mix in every account.
+        "concentrated_holdings": {"NVDA": 0.45, "SHOP.TO": 0.30, "QQQ": 0.25},
     },
     "mateo": {
         "name": "Mateo",

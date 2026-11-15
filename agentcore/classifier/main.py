@@ -38,20 +38,34 @@ CACHE_SECONDS = 600
 _CACHE: dict = {}
 
 
-def classify(action: str, ticker: str, market: dict, risk_band, growth: bool = None):
+def classify(action: str, ticker: str, market: dict, risk_band, growth: bool = None, holding_pct: float = None):
     """The Classifier's answer, from the preload cache when the exact same inputs were already classified."""
     from app.agents import persona_fit
     from app.services import sell_guard_service
 
     market = {k: v for k, v in market.items() if not k.startswith("_")}
     growth = persona_fit.is_growth_style(ticker) if growth is None else growth
-    key = hashlib.sha256(json.dumps([action, market, risk_band, growth], sort_keys=True, default=str).encode()).hexdigest()
+    key = hashlib.sha256(json.dumps([action, market, risk_band, growth, holding_pct], sort_keys=True, default=str).encode()).hexdigest()
     hit = _CACHE.get(key)
     if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
         return hit[1], True
-    result = sell_guard_service.classifier_agent(action, market, risk_band, growth)
+    result = sell_guard_service.classifier_agent(action, market, risk_band, growth, holding_pct)
     _CACHE[key] = (time.monotonic(), result)
     return result, False
+
+
+def holding_share(p: dict, action: str, ticker: str):
+    """The share (%) of the investor's portfolio held in this ticker, for a sell; None when no investor is chosen or it is not a sell."""
+    from app.domain.presets import PERSONAS
+    from app.services import sell_guard_service
+
+    if action != "sell" or p.get("persona") not in PERSONAS:
+        return None
+    try:
+        position = sell_guard_service.investor_position(p["persona"], ticker, action, p.get("account_type"), True)
+    except Exception:  # the check still works without the position size
+        return None
+    return position.get("holding_pct") if position.get("holds") else None
 
 
 def preload(p: dict) -> dict:
@@ -76,7 +90,7 @@ def work(p: dict) -> dict:
 
     def classify_move() -> dict:
         """Label the move and score it from the Market agent's output (AWS Lambda, or already preloaded; no model decides)."""
-        result, hit = classify(action, ticker, p["market"], p.get("risk_band"))
+        result, hit = classify(action, ticker, p["market"], p.get("risk_band"), holding_pct=holding_share(p, action, ticker))
         captured["classified"] = {**result, "_preloaded": hit}
         return captured["classified"]
 

@@ -82,6 +82,8 @@ def is_growth_style(ticker: str) -> bool:
     return bool(groups & {"growth", "momentum"}) and not (groups & {"dividend", "preservation"})
 
 
+CONCENTRATED_PCT = 25  # a holding this big (% of the portfolio) makes a trade a concentration risk
+
 INTAKE_BAND = {"low": "low", "mid": "moderate", "high": "high"}
 
 
@@ -146,4 +148,23 @@ def fit(
         why.append(p(f"{ticker} is a growth-style holding, and a short horizon with capital preservation does not expect to keep one, so selling fits your plan.", f"{ticker} est un placement axé sur la croissance, et un horizon court avec préservation du capital ne prévoit pas d'en détenir : vendre est cohérent avec votre plan."))
     if action == "sell" and position is not None and position.get("holding_pct"):
         why.append(p(f"{ticker} is about {position['holding_pct']}% of your portfolio.", f"{ticker} représente environ {position['holding_pct']} % de votre portefeuille."))
+    pct = (position or {}).get("holding_pct") or 0
+    if action == "sell" and pct >= CONCENTRATED_PCT and (position or {}).get("holds"):
+        # A big position is a big decision: selling it in a fear spike is the costliest panic sell.
+        if verdict in ("panic_risk", "mixed", "no_signal"):
+            stance = "careful"
+            headline = p(
+                f"{ticker} is about {pct}% of your portfolio. Selling a position this big because of fear is a panic sell with a large cost. Pause before you act.",
+                f"{ticker} représente environ {pct} % de votre portefeuille. Vendre une position aussi importante par peur est une vente de panique au coût élevé. Faites une pause avant d'agir.",
+            )
+        why.append(p(
+            f"Your portfolio is concentrated: one holding carries {pct}% of it, so this one decision moves your whole result. If you want less risk, trimming in small steps is easier to undo than selling it all.",
+            f"Votre portefeuille est concentré : un seul titre en représente {pct} %, donc cette décision influence tout votre résultat. Pour réduire le risque, alléger par petites étapes est plus facile à corriger que tout vendre.",
+        ))
+    if action == "buy" and pct >= CONCENTRATED_PCT and (position or {}).get("holds"):
+        stance = "careful" if stance == "fits" else stance
+        why.append(p(
+            f"{ticker} is already about {pct}% of your portfolio, so buying more adds to a risk you already carry.",
+            f"{ticker} représente déjà environ {pct} % de votre portefeuille : en acheter plus ajoute à un risque que vous portez déjà.",
+        ))
     return {"persona": header, "stance": stance, "headline": headline, "why": why}
